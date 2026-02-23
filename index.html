@@ -1,0 +1,3768 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+  <title>Bounty Circuit</title>
+  <script src="https://cdn.jsdelivr.net/npm/@farcade/game-sdkindex.min.js"></script>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg-a: #2f2a33;
+      --bg-b: #111018;
+      --panel: #1f1b27;
+      --panel-2: #2a2433;
+      --line: #5f556f;
+      --text: #f4eff9;
+      --accent: #f79f79;
+      --accent-2: #86e3ce;
+      --danger: #ff6f6f;
+      --good: #7ce596;
+    }
+
+    * {
+      box-sizing: border-box;
+      -webkit-tap-highlight-color: transparent;
+      touch-action: none;
+      user-select: none;
+    }
+
+    html, body {
+      width: 100%;
+      height: 100%;
+      margin: 0;
+      overflow: hidden;
+      background: radial-gradient(circle at 20% 20%, var(--bg-a), var(--bg-b) 70%);
+      color: var(--text);
+      font-family: "Trebuchet MS", "Segoe UI", sans-serif;
+    }
+
+    body {
+      display: grid;
+      place-items: center;
+    }
+
+    #game-shell {
+      position: relative;
+      width: min(100vw, calc(100vh * 2 / 3));
+      aspect-ratio: 2 / 3;
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      border-radius: 16px;
+      overflow: hidden;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.45);
+      background: linear-gradient(180deg, #25202d, #17131d);
+    }
+
+    canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+      image-rendering: pixelated;
+      image-rendering: crisp-edges;
+      touch-action: none;
+    }
+
+    #loading {
+      position: absolute;
+      inset: 0;
+      display: grid;
+      place-items: center;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      font-size: 14px;
+      background: rgba(17, 12, 21, 0.75);
+      color: #ffe9cf;
+      pointer-events: none;
+      transition: opacity 180ms ease;
+    }
+
+    #loading.hidden {
+      opacity: 0;
+    }
+
+    #fallback-controls {
+      position: absolute;
+      right: 8px;
+      top: 8px;
+      display: flex;
+      gap: 6px;
+      z-index: 2;
+    }
+
+    #fallback-controls button {
+      border: 1px solid var(--line);
+      background: rgba(30, 24, 40, 0.8);
+      color: var(--text);
+      border-radius: 8px;
+      padding: 4px 8px;
+      font-size: 11px;
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+  <div id="game-shell" aria-label="Bounty Circuit game container">
+    <canvas id="game" width="360" height="540" aria-label="Bounty Circuit canvas"></canvas>
+    <div id="loading">Loading Assets...</div>
+    <div id="fallback-controls">
+      <button id="mute-btn" type="button">Mute: Off</button>
+      <button id="fullscreen-btn" type="button">Fullscreen</button>
+    </div>
+  </div>
+
+  <script>
+    (() => {
+      "use strict";
+
+      const WIDTH = 360;
+      const HEIGHT = 540;
+      const HUD_HEIGHT = 54;
+      const LEVEL_TOTAL = 20;
+      const TOUCH_DASH_RADIUS = 34;
+      const TOUCH_SHOOT_RADIUS = 30;
+
+      const TILE = 16;
+      const MAP_COLS = 22;
+      const MAP_ROWS = 30;
+      const MAP_LEFT = Math.floor((WIDTH - MAP_COLS * TILE) / 2);
+      const MAP_TOP = HUD_HEIGHT;
+
+      const canvas = document.getElementById("game");
+      const ctx = canvas.getContext("2d");
+      const loadingNode = document.getElementById("loading");
+      const muteBtn = document.getElementById("mute-btn");
+      const fullscreenBtn = document.getElementById("fullscreen-btn");
+
+      const ASSETS = {
+        player: [
+          "kenney_desert-shooter-pack_1.0/PNG/Players/Tiles/tile_0000.png",
+          "kenney_desert-shooter-pack_1.0/PNG/Players/Tiles/tile_0001.png",
+          "kenney_desert-shooter-pack_1.0/PNG/Players/Tiles/tile_0008.png",
+          "kenney_desert-shooter-pack_1.0/PNG/Players/Tiles/tile_0009.png"
+        ],
+        enemy: [
+          "kenney_desert-shooter-pack_1.0/PNG/Enemies/Tiles/tile_0000.png",
+          "kenney_desert-shooter-pack_1.0/PNG/Enemies/Tiles/tile_0001.png",
+          "kenney_desert-shooter-pack_1.0/PNG/Enemies/Tiles/tile_0008.png",
+          "kenney_desert-shooter-pack_1.0/PNG/Enemies/Tiles/tile_0009.png"
+        ],
+        weapon: [
+          "kenney_desert-shooter-pack_1.0/PNG/Weapons/Tiles/tile_0000.png",
+          "kenney_desert-shooter-pack_1.0/PNG/Weapons/Tiles/tile_0004.png",
+          "kenney_desert-shooter-pack_1.0/PNG/Weapons/Tiles/tile_0014.png",
+          "kenney_desert-shooter-pack_1.0/PNG/Weapons/Tiles/tile_0024.png",
+          "kenney_desert-shooter-pack_1.0/PNG/Weapons/Tiles/tile_0033.png"
+        ],
+        ui: {
+          panel: "kenney_desert-shooter-pack_1.0/PNG/Interface/Tiles/tile_0158.png",
+          bar: "kenney_desert-shooter-pack_1.0/PNG/Interface/Tiles/tile_0166.png",
+          marker: "kenney_desert-shooter-pack_1.0/PNG/Interface/Tiles/tile_0008.png"
+        },
+        tiles: {
+          biomes: {
+            rust: [
+              "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0156.png",
+              "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0157.png",
+              "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0192.png"
+            ],
+            oasis: [
+              "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0095.png",
+              "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0096.png",
+              "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0099.png"
+            ],
+            violet: [
+              "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0090.png",
+              "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0091.png",
+              "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0094.png"
+            ],
+            slate: [
+              "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0100.png",
+              "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0102.png",
+              "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0103.png"
+            ],
+            sand: [
+              "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0156.png",
+              "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0157.png",
+              "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0193.png"
+            ]
+          },
+          roads: [
+            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0159.png",
+            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0190.png",
+            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0191.png"
+          ],
+          roofs: [
+            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0204.png",
+            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0205.png",
+            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0170.png",
+            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0171.png"
+          ],
+          walls: [
+            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0164.png",
+            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0165.png",
+            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0166.png",
+            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0167.png"
+          ],
+          covers: [
+            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0229.png",
+            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0230.png",
+            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0231.png"
+          ],
+          doors: [
+            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0211.png",
+            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0212.png",
+            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0213.png"
+          ],
+          props: [
+            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0075.png",
+            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0080.png",
+            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0081.png",
+            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0082.png",
+            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0084.png",
+            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0196.png",
+            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0208.png",
+            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0209.png",
+            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0225.png",
+            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0226.png"
+          ],
+          terminals: [
+            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0200.png",
+            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0202.png",
+            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0220.png"
+          ],
+          crates: [
+            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0229.png",
+            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0230.png",
+            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0231.png"
+          ],
+          intel: [
+            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0218.png",
+            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0219.png",
+            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0228.png"
+          ],
+          extraction: [
+            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0188.png",
+            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0189.png",
+            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0201.png"
+          ]
+        },
+        audio: {
+          shoot: "kenney_desert-shooter-pack_1.0/Sounds/shoot-a.ogg",
+          hit: "kenney_desert-shooter-pack_1.0/Sounds/hurt-a.ogg",
+          enemyDown: "kenney_desert-shooter-pack_1.0/Sounds/explosion-a.ogg",
+          reward: "kenney_desert-shooter-pack_1.0/Sounds/coin-a.ogg",
+          lose: "kenney_desert-shooter-pack_1.0/Sounds/lose-a.ogg",
+          select: "kenney_desert-shooter-pack_1.0/Sounds/select-a.ogg",
+          error: "kenney_desert-shooter-pack_1.0/Sounds/error-a.ogg"
+        }
+      };
+
+      const LEVEL_NAMES = [
+        "Dustline Entry", "Broken Depot", "Signal Yard", "Lost Courier", "Night Holdout",
+        "Cactus Crossing", "Relay Disruption", "Supply Sabotage", "Wanted Ledger", "Sandwall Defense",
+        "Ruin District", "Ghost Uplink", "Fuel Convoy", "Archive Sweep", "Siege of Red Gate",
+        "Iron Bazaar", "Tower Override", "Warlord Stores", "Last Transmission", "Citadel Break"
+      ];
+
+      const MISSION_PATTERN = [
+        "eliminate", "demolition", "uplink", "intel", "survive",
+        "eliminate", "uplink", "demolition", "intel", "survive",
+        "eliminate", "uplink", "demolition", "intel", "survive",
+        "eliminate", "uplink", "demolition", "intel", "survive"
+      ];
+
+      const DISTRICT_PATTERN = [
+        "rust", "oasis", "violet", "slate", "sand",
+        "rust", "slate", "oasis", "violet", "sand",
+        "violet", "rust", "sand", "oasis", "slate",
+        "rust", "sand", "violet", "oasis", "slate"
+      ];
+
+      const WEAPONS = [
+        { name: "Sidearm", damage: 11, cooldown: 0.32, speed: 250, color: "#ffe39e", sprite: 0, spread: 0, projectiles: 1 },
+        { name: "Burst Carbine", damage: 8, cooldown: 0.17, speed: 290, color: "#ffd57a", sprite: 1, spread: 0.08, projectiles: 2 },
+        { name: "Ranger Rifle", damage: 17, cooldown: 0.27, speed: 345, color: "#ffa674", sprite: 2, spread: 0.03, projectiles: 1 },
+        { name: "Needler", damage: 20, cooldown: 0.43, speed: 380, color: "#ff7f9f", sprite: 3, spread: 0.12, projectiles: 3 },
+        { name: "Circuit Cannon", damage: 30, cooldown: 0.56, speed: 420, color: "#86e3ce", sprite: 4, spread: 0.04, projectiles: 1 }
+      ];
+
+      const imageStore = new Map();
+      let assetsLoaded = false;
+
+      const controls = {
+        dash: false,
+        shoot: false,
+        shootPointerId: null,
+        joystick: { active: false, id: null, ox: 0, oy: 0, x: 0, y: 0 }
+      };
+
+      const keyState = new Set();
+      const pointerState = new Map();
+      const mousePointer = { active: false, x: 0, y: 0 };
+
+      const state = {
+        mode: "loading",
+        score: 0,
+        levelIndex: 0,
+        timer: 0,
+        kills: 0,
+        combo: 0,
+        comboTimer: 0,
+        sdkReported: false,
+        isMuted: false,
+        victory: false,
+        lastDamageAt: 0,
+        totalRuntime: 0,
+        floatingTexts: [],
+        enemies: [],
+        bullets: [],
+        enemyBullets: [],
+        upgradeChoices: [],
+        mission: null,
+        map: null,
+        currentLevel: null,
+        pathGridTimer: 0,
+        pathGridByRadius: {},
+        director: { remaining: 0, cooldown: 1, rate: 2, active: false },
+        build: null,
+        player: null,
+        lastAimDir: { x: 1, y: 0 },
+        levelBriefTimer: 0
+      };
+
+      function rand(min, max) {
+        return min + Math.random() * (max - min);
+      }
+
+      function clamp(value, min, max) {
+        return Math.max(min, Math.min(max, value));
+      }
+
+      function distSq(a, b) {
+        const dx = a.x - b.x;
+        const dy = a.y - b.y;
+        return dx * dx + dy * dy;
+      }
+
+      function normalize(x, y) {
+        const len = Math.hypot(x, y);
+        if (len < 0.0001) return { x: 0, y: 0 };
+        return { x: x / len, y: y / len };
+      }
+
+      function getTouchButtonCenters() {
+        return {
+          dashX: WIDTH - 72,
+          dashY: HEIGHT - 72,
+          shootX: WIDTH - 72,
+          shootY: HEIGHT - 154
+        };
+      }
+
+      function makeRng(seed) {
+        let s = seed >>> 0;
+        return () => {
+          s = (1664525 * s + 1013904223) >>> 0;
+          return s / 4294967296;
+        };
+      }
+
+      function loadImage(path) {
+        return new Promise((resolve, reject) => {
+          const img = new Image();
+          img.onload = () => resolve(img);
+          img.onerror = reject;
+          img.src = path;
+        });
+      }
+
+      function flattenValues(value, out) {
+        if (Array.isArray(value)) {
+          for (const item of value) flattenValues(item, out);
+          return;
+        }
+        if (value && typeof value === "object") {
+          for (const item of Object.values(value)) flattenValues(item, out);
+          return;
+        }
+        if (typeof value === "string") out.push(value);
+      }
+
+      async function loadAssets() {
+        const paths = [];
+        flattenValues(ASSETS, paths);
+
+        const uniquePaths = Array.from(new Set(paths.filter((p) => p.endsWith(".png"))));
+        const tasks = uniquePaths.map(async (path) => {
+          try {
+            const img = await loadImage(path);
+            imageStore.set(path, img);
+          } catch (_err) {
+            imageStore.set(path, null);
+          }
+        });
+
+        await Promise.all(tasks);
+        assetsLoaded = true;
+      }
+
+      function getImage(path) {
+        return imageStore.get(path) || null;
+      }
+
+      function drawSpriteTo(targetCtx, path, x, y, w, h, alpha = 1) {
+        const img = getImage(path);
+        if (!img) return false;
+        targetCtx.save();
+        targetCtx.globalAlpha = alpha;
+        targetCtx.drawImage(img, x, y, w, h);
+        targetCtx.restore();
+        return true;
+      }
+
+      function drawSprite(path, x, y, w, h, alpha = 1) {
+        return drawSpriteTo(ctx, path, x, y, w, h, alpha);
+      }
+
+      function playSfx(key, volume = 0.4) {
+        if (state.isMuted) return;
+        const src = ASSETS.audio[key];
+        if (!src) return;
+        const clip = new Audio(src);
+        clip.volume = volume;
+        clip.play().catch(() => {});
+      }
+
+      function triggerHaptic() {
+        if (window.FarcadeSDK && typeof window.FarcadeSDK.hapticFeedback === "function") {
+          window.FarcadeSDK.hapticFeedback();
+        }
+      }
+
+      function setMuted(isMuted) {
+        state.isMuted = Boolean(isMuted);
+        muteBtn.textContent = `Mute: ${state.isMuted ? "On" : "Off"}`;
+      }
+
+      function attachSdkHandlers() {
+        if (!window.FarcadeSDK) return false;
+
+        if (typeof window.FarcadeSDK.onPlayAgain === "function") {
+          window.FarcadeSDK.onPlayAgain(() => {
+            resetGame();
+            startRun();
+          });
+        }
+
+        if (typeof window.FarcadeSDK.onToggleMute === "function") {
+          window.FarcadeSDK.onToggleMute((data) => {
+            setMuted(Boolean(data && data.isMuted));
+          });
+        }
+
+        return true;
+      }
+
+      function reportGameOver(scoreValue) {
+        if (state.sdkReported) return;
+        state.sdkReported = true;
+
+        if (
+          window.FarcadeSDK &&
+          window.FarcadeSDK.singlePlayer &&
+          window.FarcadeSDK.singlePlayer.actions &&
+          typeof window.FarcadeSDK.singlePlayer.actions.gameOver === "function"
+        ) {
+          window.FarcadeSDK.singlePlayer.actions.gameOver({ score: scoreValue });
+        }
+      }
+
+      function createBuild() {
+        return {
+          maxHpBonus: 0,
+          moveSpeedMult: 1,
+          fireRateMult: 1,
+          damageMult: 1,
+          bulletSpeedMult: 1,
+          dashCooldownMult: 1,
+          critChance: 0.1,
+          pierce: 0,
+          multiShot: 0,
+          armor: 0,
+          weaponTier: 0,
+          maxUnlockedTier: 1
+        };
+      }
+
+      function makePlayer(carryHp = null) {
+        const maxHp = 100 + state.build.maxHpBonus;
+        const hp = carryHp == null ? maxHp : clamp(carryHp, 1, maxHp);
+        return {
+          x: WIDTH * 0.5,
+          y: HEIGHT - 84,
+          radius: 12,
+          hp,
+          maxHp,
+          baseSpeed: 124,
+          fireCooldown: 0,
+          dashCooldown: 0,
+          dashTimer: 0,
+          contactCooldown: 0,
+          invulnTimer: 0,
+          weaponIndex: clamp(state.build.weaponTier, 0, WEAPONS.length - 1)
+        };
+      }
+
+      function applyBuildToPlayer() {
+        const p = state.player;
+        const previousRatio = p.maxHp <= 0 ? 1 : p.hp / p.maxHp;
+        p.maxHp = 100 + state.build.maxHpBonus;
+        p.hp = clamp(Math.max(p.hp, p.maxHp * previousRatio), 1, p.maxHp);
+        p.weaponIndex = clamp(state.build.weaponTier, 0, WEAPONS.length - 1);
+      }
+
+      function createLevelTable() {
+        const levels = [];
+        for (let i = 0; i < LEVEL_TOTAL; i += 1) {
+          const chapter = Math.floor(i / 5);
+          const type = MISSION_PATTERN[i];
+          const timerBase = 68 + chapter * 8;
+          const timerBonus = type === "survive" ? 22 : type === "intel" ? 10 : 0;
+          levels.push({
+            id: i + 1,
+            name: LEVEL_NAMES[i],
+            type,
+            district: DISTRICT_PATTERN[i],
+            timer: timerBase + timerBonus,
+            enemyBudget: 8 + i * 2,
+            spawnRate: Math.max(0.72, 2.3 - i * 0.06),
+            seed: 20241 + i * 137,
+            style: i % 4
+          });
+        }
+        return levels;
+      }
+
+      const LEVELS = createLevelTable();
+
+      const TOWN_LAYOUTS = [
+        {
+          avenues: [5, 14],
+          streets: [7, 16, 24],
+          connectors: [
+            { x: 2, y: 11, w: 6, h: 2 },
+            { x: 12, y: 20, w: 8, h: 2 }
+          ],
+          plazas: [{ x: 8, y: 10, w: 4, h: 4 }]
+        },
+        {
+          avenues: [4, 12, 17],
+          streets: [6, 14, 23],
+          connectors: [
+            { x: 6, y: 18, w: 7, h: 2 },
+            { x: 1, y: 9, w: 5, h: 2 }
+          ],
+          plazas: [{ x: 14, y: 16, w: 5, h: 4 }]
+        },
+        {
+          avenues: [6, 15],
+          streets: [5, 12, 19, 26],
+          connectors: [
+            { x: 8, y: 15, w: 6, h: 2 },
+            { x: 3, y: 22, w: 6, h: 2 }
+          ],
+          plazas: [{ x: 9, y: 6, w: 4, h: 4 }]
+        },
+        {
+          avenues: [3, 10, 17],
+          streets: [8, 18, 25],
+          connectors: [
+            { x: 5, y: 4, w: 8, h: 2 },
+            { x: 10, y: 21, w: 8, h: 2 }
+          ],
+          plazas: [{ x: 4, y: 12, w: 4, h: 4 }]
+        }
+      ];
+
+      const HANDCRAFTED_LEVEL_LAYOUTS = [
+        {
+          avenues: [5, 14],
+          streets: [7, 16, 24],
+          connectors: [{ x: 2, y: 11, w: 6, h: 2 }, { x: 12, y: 20, w: 8, h: 2 }],
+          plazas: [{ x: 8, y: 10, w: 4, h: 4 }],
+          patches: [{ x: 1, y: 1, w: 5, h: 5 }, { x: 15, y: 1, w: 5, h: 4 }]
+        },
+        {
+          avenues: [4, 12, 17],
+          streets: [6, 14, 23],
+          connectors: [{ x: 6, y: 18, w: 7, h: 2 }, { x: 1, y: 9, w: 5, h: 2 }],
+          plazas: [{ x: 14, y: 16, w: 5, h: 4 }],
+          patches: [{ x: 2, y: 20, w: 4, h: 6 }, { x: 16, y: 4, w: 4, h: 5 }]
+        },
+        {
+          avenues: [6, 15],
+          streets: [5, 12, 19, 26],
+          connectors: [{ x: 8, y: 15, w: 6, h: 2 }, { x: 3, y: 22, w: 6, h: 2 }],
+          plazas: [{ x: 9, y: 6, w: 4, h: 4 }],
+          patches: [{ x: 1, y: 24, w: 6, h: 4 }, { x: 15, y: 1, w: 5, h: 4 }]
+        },
+        {
+          avenues: [3, 10, 17],
+          streets: [8, 18, 25],
+          connectors: [{ x: 5, y: 4, w: 8, h: 2 }, { x: 10, y: 21, w: 8, h: 2 }],
+          plazas: [{ x: 4, y: 12, w: 4, h: 4 }],
+          patches: [{ x: 13, y: 11, w: 6, h: 5 }]
+        },
+        {
+          avenues: [5, 13],
+          streets: [6, 13, 20, 27],
+          connectors: [{ x: 2, y: 17, w: 7, h: 2 }, { x: 12, y: 9, w: 8, h: 2 }],
+          plazas: [{ x: 15, y: 22, w: 4, h: 4 }],
+          patches: [{ x: 1, y: 1, w: 6, h: 4 }, { x: 9, y: 23, w: 5, h: 5 }]
+        },
+        {
+          avenues: [4, 11, 16],
+          streets: [7, 15, 23],
+          connectors: [{ x: 6, y: 11, w: 8, h: 2 }, { x: 9, y: 19, w: 7, h: 2 }],
+          plazas: [{ x: 2, y: 18, w: 4, h: 4 }],
+          patches: [{ x: 15, y: 2, w: 5, h: 6 }]
+        },
+        {
+          avenues: [6, 14],
+          streets: [5, 11, 18, 24],
+          connectors: [{ x: 1, y: 14, w: 7, h: 2 }, { x: 12, y: 20, w: 8, h: 2 }],
+          plazas: [{ x: 9, y: 8, w: 4, h: 4 }],
+          patches: [{ x: 2, y: 2, w: 4, h: 5 }, { x: 15, y: 14, w: 5, h: 6 }]
+        },
+        {
+          avenues: [3, 9, 15],
+          streets: [6, 16, 25],
+          connectors: [{ x: 5, y: 10, w: 6, h: 2 }, { x: 10, y: 21, w: 7, h: 2 }],
+          plazas: [{ x: 14, y: 6, w: 4, h: 4 }],
+          patches: [{ x: 1, y: 20, w: 5, h: 5 }, { x: 12, y: 1, w: 6, h: 4 }]
+        },
+        {
+          avenues: [5, 12, 18],
+          streets: [7, 14, 22],
+          connectors: [{ x: 7, y: 17, w: 8, h: 2 }, { x: 2, y: 9, w: 6, h: 2 }],
+          plazas: [{ x: 8, y: 20, w: 4, h: 4 }],
+          patches: [{ x: 15, y: 2, w: 4, h: 5 }, { x: 1, y: 12, w: 4, h: 5 }]
+        },
+        {
+          avenues: [4, 13],
+          streets: [5, 12, 19, 26],
+          connectors: [{ x: 8, y: 15, w: 6, h: 2 }, { x: 1, y: 22, w: 7, h: 2 }],
+          plazas: [{ x: 14, y: 10, w: 4, h: 4 }],
+          patches: [{ x: 2, y: 1, w: 5, h: 4 }, { x: 15, y: 22, w: 4, h: 4 }]
+        },
+        {
+          avenues: [6, 15],
+          streets: [8, 16, 24],
+          connectors: [{ x: 3, y: 12, w: 8, h: 2 }, { x: 11, y: 20, w: 8, h: 2 }],
+          plazas: [{ x: 2, y: 5, w: 4, h: 4 }],
+          patches: [{ x: 14, y: 2, w: 6, h: 5 }, { x: 8, y: 22, w: 5, h: 5 }]
+        },
+        {
+          avenues: [4, 10, 16],
+          streets: [6, 14, 21, 27],
+          connectors: [{ x: 6, y: 18, w: 7, h: 2 }, { x: 10, y: 9, w: 8, h: 2 }],
+          plazas: [{ x: 15, y: 16, w: 4, h: 4 }],
+          patches: [{ x: 1, y: 24, w: 6, h: 4 }, { x: 12, y: 2, w: 5, h: 5 }]
+        },
+        {
+          avenues: [5, 14],
+          streets: [7, 13, 20, 25],
+          connectors: [{ x: 2, y: 10, w: 7, h: 2 }, { x: 11, y: 22, w: 8, h: 2 }],
+          plazas: [{ x: 8, y: 16, w: 4, h: 4 }],
+          patches: [{ x: 15, y: 1, w: 5, h: 4 }, { x: 2, y: 18, w: 4, h: 6 }]
+        },
+        {
+          avenues: [3, 11, 17],
+          streets: [5, 12, 19, 26],
+          connectors: [{ x: 5, y: 15, w: 9, h: 2 }, { x: 9, y: 8, w: 7, h: 2 }],
+          plazas: [{ x: 13, y: 22, w: 4, h: 4 }],
+          patches: [{ x: 1, y: 2, w: 5, h: 5 }, { x: 15, y: 14, w: 4, h: 5 }]
+        },
+        {
+          avenues: [6, 13],
+          streets: [6, 15, 23],
+          connectors: [{ x: 1, y: 11, w: 6, h: 2 }, { x: 12, y: 18, w: 8, h: 2 }],
+          plazas: [{ x: 9, y: 5, w: 4, h: 4 }],
+          patches: [{ x: 2, y: 20, w: 5, h: 6 }, { x: 14, y: 2, w: 5, h: 4 }]
+        },
+        {
+          avenues: [4, 12, 18],
+          streets: [7, 14, 21, 27],
+          connectors: [{ x: 6, y: 10, w: 8, h: 2 }, { x: 9, y: 24, w: 8, h: 2 }],
+          plazas: [{ x: 2, y: 16, w: 4, h: 4 }],
+          patches: [{ x: 14, y: 4, w: 5, h: 6 }, { x: 1, y: 1, w: 4, h: 4 }]
+        },
+        {
+          avenues: [5, 11, 16],
+          streets: [5, 13, 20, 26],
+          connectors: [{ x: 3, y: 17, w: 7, h: 2 }, { x: 11, y: 9, w: 8, h: 2 }],
+          plazas: [{ x: 14, y: 19, w: 4, h: 4 }],
+          patches: [{ x: 2, y: 22, w: 6, h: 4 }, { x: 13, y: 2, w: 6, h: 4 }]
+        },
+        {
+          avenues: [3, 9, 15],
+          streets: [6, 14, 22],
+          connectors: [{ x: 5, y: 11, w: 6, h: 2 }, { x: 10, y: 18, w: 8, h: 2 }],
+          plazas: [{ x: 8, y: 24, w: 4, h: 4 }],
+          patches: [{ x: 1, y: 2, w: 5, h: 5 }, { x: 14, y: 14, w: 6, h: 5 }]
+        },
+        {
+          avenues: [6, 14],
+          streets: [7, 16, 24],
+          connectors: [{ x: 1, y: 20, w: 8, h: 2 }, { x: 12, y: 12, w: 8, h: 2 }],
+          plazas: [{ x: 9, y: 8, w: 4, h: 4 }],
+          patches: [{ x: 15, y: 1, w: 4, h: 5 }, { x: 2, y: 23, w: 5, h: 4 }]
+        },
+        {
+          avenues: [4, 10, 17],
+          streets: [5, 12, 19, 26],
+          connectors: [{ x: 6, y: 15, w: 10, h: 2 }, { x: 2, y: 9, w: 6, h: 2 }],
+          plazas: [{ x: 14, y: 5, w: 5, h: 5 }, { x: 7, y: 22, w: 4, h: 4 }],
+          patches: [{ x: 1, y: 1, w: 6, h: 4 }, { x: 14, y: 22, w: 5, h: 5 }]
+        }
+      ];
+
+      const HANDCRAFTED_BUILDING_FOOTPRINTS = [
+        [
+          { x: 1, y: 1, w: 3, h: 4 }, { x: 7, y: 1, w: 6, h: 4 }, { x: 16, y: 1, w: 4, h: 3 },
+          { x: 1, y: 9, w: 3, h: 5 }, { x: 8, y: 10, w: 4, h: 3 }, { x: 16, y: 10, w: 4, h: 5 },
+          { x: 2, y: 18, w: 3, h: 5 }, { x: 7, y: 18, w: 6, h: 4 }, { x: 16, y: 19, w: 4, h: 4 },
+          { x: 8, y: 26, w: 4, h: 3 }
+        ],
+        [
+          { x: 1, y: 1, w: 3, h: 4 }, { x: 6, y: 1, w: 5, h: 4 }, { x: 14, y: 1, w: 3, h: 4 },
+          { x: 1, y: 8, w: 3, h: 5 }, { x: 7, y: 9, w: 4, h: 4 }, { x: 14, y: 8, w: 3, h: 5 },
+          { x: 1, y: 16, w: 3, h: 6 }, { x: 6, y: 17, w: 5, h: 5 }, { x: 14, y: 17, w: 3, h: 5 },
+          { x: 6, y: 25, w: 5, h: 3 }
+        ],
+        [
+          { x: 1, y: 1, w: 4, h: 3 }, { x: 8, y: 1, w: 6, h: 3 }, { x: 17, y: 1, w: 3, h: 3 },
+          { x: 1, y: 7, w: 4, h: 4 }, { x: 9, y: 7, w: 4, h: 4 }, { x: 17, y: 7, w: 3, h: 4 },
+          { x: 1, y: 14, w: 4, h: 4 }, { x: 8, y: 14, w: 6, h: 4 }, { x: 17, y: 14, w: 3, h: 4 },
+          { x: 2, y: 21, w: 3, h: 4 }, { x: 9, y: 21, w: 4, h: 4 }, { x: 17, y: 21, w: 3, h: 4 }
+        ],
+        [
+          { x: 5, y: 1, w: 4, h: 5 }, { x: 12, y: 1, w: 4, h: 5 },
+          { x: 5, y: 10, w: 4, h: 6 }, { x: 12, y: 10, w: 4, h: 6 },
+          { x: 6, y: 20, w: 3, h: 4 }, { x: 12, y: 20, w: 4, h: 4 }
+        ],
+        [
+          { x: 1, y: 1, w: 3, h: 4 }, { x: 7, y: 1, w: 5, h: 4 }, { x: 15, y: 1, w: 4, h: 4 },
+          { x: 1, y: 8, w: 3, h: 4 }, { x: 8, y: 8, w: 4, h: 4 }, { x: 15, y: 8, w: 4, h: 4 },
+          { x: 1, y: 15, w: 3, h: 4 }, { x: 7, y: 15, w: 5, h: 4 }, { x: 16, y: 15, w: 4, h: 4 },
+          { x: 2, y: 22, w: 3, h: 4 }, { x: 8, y: 22, w: 4, h: 4 }, { x: 15, y: 22, w: 5, h: 4 }
+        ],
+        [
+          { x: 1, y: 1, w: 3, h: 4 }, { x: 6, y: 1, w: 4, h: 4 }, { x: 13, y: 1, w: 3, h: 4 }, { x: 18, y: 1, w: 3, h: 4 },
+          { x: 1, y: 9, w: 3, h: 4 }, { x: 6, y: 9, w: 4, h: 4 }, { x: 13, y: 9, w: 3, h: 4 }, { x: 18, y: 9, w: 3, h: 4 },
+          { x: 1, y: 17, w: 3, h: 5 }, { x: 6, y: 17, w: 4, h: 5 }, { x: 13, y: 17, w: 3, h: 5 }, { x: 18, y: 17, w: 3, h: 5 },
+          { x: 6, y: 25, w: 4, h: 3 }, { x: 18, y: 25, w: 3, h: 3 }
+        ],
+        [
+          { x: 1, y: 1, w: 4, h: 3 }, { x: 8, y: 1, w: 5, h: 3 }, { x: 16, y: 1, w: 4, h: 3 },
+          { x: 1, y: 7, w: 4, h: 3 }, { x: 8, y: 7, w: 5, h: 3 }, { x: 16, y: 7, w: 4, h: 3 },
+          { x: 1, y: 13, w: 4, h: 4 }, { x: 8, y: 13, w: 5, h: 4 }, { x: 16, y: 13, w: 4, h: 4 },
+          { x: 1, y: 20, w: 4, h: 3 }, { x: 8, y: 20, w: 5, h: 3 }, { x: 16, y: 20, w: 4, h: 3 },
+          { x: 8, y: 26, w: 4, h: 3 }
+        ],
+        [
+          { x: 5, y: 1, w: 3, h: 4 }, { x: 11, y: 1, w: 3, h: 4 }, { x: 17, y: 1, w: 3, h: 4 },
+          { x: 5, y: 8, w: 3, h: 6 }, { x: 11, y: 8, w: 3, h: 6 }, { x: 17, y: 8, w: 3, h: 6 },
+          { x: 5, y: 18, w: 3, h: 5 }, { x: 11, y: 18, w: 3, h: 5 }, { x: 17, y: 18, w: 3, h: 5 }
+        ],
+        [
+          { x: 1, y: 1, w: 3, h: 4 }, { x: 7, y: 1, w: 4, h: 4 }, { x: 14, y: 1, w: 3, h: 4 },
+          { x: 1, y: 9, w: 3, h: 4 }, { x: 7, y: 9, w: 4, h: 4 }, { x: 14, y: 9, w: 3, h: 4 },
+          { x: 1, y: 16, w: 3, h: 5 }, { x: 7, y: 16, w: 4, h: 5 }, { x: 14, y: 16, w: 3, h: 5 },
+          { x: 7, y: 24, w: 4, h: 4 }, { x: 14, y: 24, w: 3, h: 4 }
+        ],
+        [
+          { x: 1, y: 1, w: 3, h: 3 }, { x: 6, y: 1, w: 5, h: 3 }, { x: 15, y: 1, w: 4, h: 3 },
+          { x: 1, y: 7, w: 3, h: 4 }, { x: 6, y: 7, w: 5, h: 4 }, { x: 15, y: 7, w: 4, h: 4 },
+          { x: 1, y: 14, w: 3, h: 4 }, { x: 7, y: 14, w: 4, h: 4 }, { x: 15, y: 14, w: 4, h: 4 },
+          { x: 6, y: 21, w: 5, h: 4 }, { x: 15, y: 21, w: 4, h: 4 }
+        ],
+        [
+          { x: 1, y: 1, w: 4, h: 5 }, { x: 8, y: 1, w: 6, h: 5 }, { x: 17, y: 1, w: 3, h: 5 },
+          { x: 1, y: 10, w: 4, h: 4 }, { x: 9, y: 10, w: 4, h: 4 }, { x: 17, y: 10, w: 3, h: 4 },
+          { x: 1, y: 18, w: 4, h: 4 }, { x: 8, y: 18, w: 6, h: 4 }, { x: 17, y: 18, w: 3, h: 4 },
+          { x: 8, y: 26, w: 4, h: 3 }
+        ],
+        [
+          { x: 1, y: 1, w: 3, h: 4 }, { x: 6, y: 1, w: 3, h: 4 }, { x: 12, y: 1, w: 3, h: 4 }, { x: 18, y: 1, w: 3, h: 4 },
+          { x: 1, y: 8, w: 3, h: 4 }, { x: 6, y: 8, w: 3, h: 4 }, { x: 12, y: 8, w: 3, h: 4 }, { x: 18, y: 8, w: 3, h: 4 },
+          { x: 1, y: 16, w: 3, h: 4 }, { x: 6, y: 16, w: 3, h: 4 }, { x: 12, y: 16, w: 3, h: 4 }, { x: 18, y: 16, w: 3, h: 4 },
+          { x: 6, y: 23, w: 3, h: 4 }, { x: 12, y: 23, w: 3, h: 4 }
+        ],
+        [
+          { x: 1, y: 1, w: 3, h: 4 }, { x: 7, y: 1, w: 6, h: 4 }, { x: 16, y: 1, w: 4, h: 4 },
+          { x: 1, y: 9, w: 3, h: 3 }, { x: 8, y: 9, w: 4, h: 3 }, { x: 16, y: 9, w: 4, h: 3 },
+          { x: 1, y: 15, w: 3, h: 4 }, { x: 7, y: 15, w: 6, h: 4 }, { x: 16, y: 15, w: 4, h: 4 },
+          { x: 7, y: 22, w: 5, h: 3 }, { x: 16, y: 22, w: 4, h: 3 }
+        ],
+        [
+          { x: 5, y: 1, w: 4, h: 3 }, { x: 13, y: 1, w: 3, h: 3 },
+          { x: 5, y: 7, w: 4, h: 4 }, { x: 13, y: 7, w: 3, h: 4 },
+          { x: 5, y: 14, w: 4, h: 4 }, { x: 13, y: 14, w: 3, h: 4 },
+          { x: 5, y: 21, w: 4, h: 4 }, { x: 13, y: 21, w: 3, h: 4 }
+        ],
+        [
+          { x: 1, y: 1, w: 4, h: 4 }, { x: 8, y: 1, w: 4, h: 4 }, { x: 15, y: 1, w: 4, h: 4 },
+          { x: 1, y: 8, w: 4, h: 5 }, { x: 8, y: 8, w: 4, h: 5 }, { x: 15, y: 8, w: 4, h: 5 },
+          { x: 1, y: 17, w: 4, h: 4 }, { x: 8, y: 17, w: 4, h: 4 }, { x: 15, y: 17, w: 4, h: 4 },
+          { x: 8, y: 25, w: 4, h: 3 }
+        ],
+        [
+          { x: 1, y: 1, w: 3, h: 4 }, { x: 6, y: 1, w: 5, h: 4 }, { x: 14, y: 1, w: 3, h: 4 },
+          { x: 1, y: 9, w: 3, h: 4 }, { x: 6, y: 9, w: 5, h: 4 }, { x: 14, y: 9, w: 3, h: 4 },
+          { x: 1, y: 16, w: 3, h: 4 }, { x: 6, y: 16, w: 5, h: 4 }, { x: 14, y: 16, w: 3, h: 4 },
+          { x: 6, y: 23, w: 5, h: 4 }, { x: 14, y: 23, w: 3, h: 4 }
+        ],
+        [
+          { x: 1, y: 1, w: 3, h: 3 }, { x: 7, y: 1, w: 3, h: 3 }, { x: 13, y: 1, w: 3, h: 3 }, { x: 18, y: 1, w: 3, h: 3 },
+          { x: 1, y: 7, w: 3, h: 4 }, { x: 7, y: 7, w: 3, h: 4 }, { x: 13, y: 7, w: 3, h: 4 }, { x: 18, y: 7, w: 3, h: 4 },
+          { x: 1, y: 15, w: 3, h: 4 }, { x: 7, y: 15, w: 3, h: 4 }, { x: 13, y: 15, w: 3, h: 4 }, { x: 18, y: 15, w: 3, h: 4 },
+          { x: 7, y: 22, w: 3, h: 4 }, { x: 13, y: 22, w: 3, h: 4 }
+        ],
+        [
+          { x: 5, y: 1, w: 3, h: 4 }, { x: 11, y: 1, w: 3, h: 4 }, { x: 17, y: 1, w: 3, h: 4 },
+          { x: 5, y: 8, w: 3, h: 4 }, { x: 11, y: 8, w: 3, h: 4 }, { x: 17, y: 8, w: 3, h: 4 },
+          { x: 5, y: 16, w: 3, h: 5 }, { x: 11, y: 16, w: 3, h: 5 }, { x: 17, y: 16, w: 3, h: 5 },
+          { x: 11, y: 24, w: 3, h: 4 }
+        ],
+        [
+          { x: 1, y: 1, w: 4, h: 4 }, { x: 8, y: 1, w: 5, h: 4 }, { x: 16, y: 1, w: 4, h: 4 },
+          { x: 1, y: 9, w: 4, h: 5 }, { x: 8, y: 9, w: 5, h: 5 }, { x: 16, y: 9, w: 4, h: 5 },
+          { x: 1, y: 18, w: 4, h: 4 }, { x: 8, y: 18, w: 5, h: 4 }, { x: 16, y: 18, w: 4, h: 4 },
+          { x: 8, y: 26, w: 5, h: 3 }
+        ],
+        [
+          { x: 1, y: 1, w: 3, h: 3 }, { x: 6, y: 1, w: 3, h: 3 }, { x: 12, y: 1, w: 4, h: 3 },
+          { x: 1, y: 7, w: 3, h: 4 }, { x: 6, y: 7, w: 3, h: 4 }, { x: 12, y: 7, w: 4, h: 4 },
+          { x: 1, y: 14, w: 3, h: 4 }, { x: 6, y: 14, w: 3, h: 4 }, { x: 12, y: 14, w: 4, h: 4 },
+          { x: 1, y: 21, w: 3, h: 4 }, { x: 6, y: 21, w: 3, h: 4 }, { x: 12, y: 21, w: 4, h: 4 }
+        ]
+      ];
+
+      const DISTRICT_THEMES = {
+        rust: {
+          ground: [
+            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0193.png",
+            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0192.png",
+            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0194.png"
+          ],
+          path: [
+            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0156.png",
+            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0157.png",
+            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0190.png"
+          ],
+          patch: [
+            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0090.png",
+            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0095.png",
+            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0113.png"
+          ],
+          roofs: [
+            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0109.png",
+            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0119.png",
+            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0204.png",
+            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0205.png"
+          ],
+          walls: [
+            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0166.png",
+            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0167.png",
+            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0164.png"
+          ],
+          baseColor: "#ceb495",
+          roadTint: "rgba(82, 68, 96, 0.055)",
+          roadLine: "rgba(255, 227, 176, 0.3)",
+          roadEdge: "rgba(53, 47, 76, 0.24)",
+          buildingOutline: "rgba(42, 32, 54, 0.72)"
+        },
+        oasis: {
+          ground: [
+            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0193.png",
+            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0192.png",
+            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0194.png"
+          ],
+          path: [
+            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0156.png",
+            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0157.png",
+            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0190.png"
+          ],
+          patch: [
+            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0095.png",
+            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0096.png",
+            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0113.png"
+          ],
+          roofs: [
+            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0113.png",
+            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0119.png",
+            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0109.png"
+          ],
+          walls: [
+            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0164.png",
+            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0165.png",
+            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0166.png"
+          ],
+          baseColor: "#c9b59a",
+          roadTint: "rgba(74, 64, 92, 0.05)",
+          roadLine: "rgba(244, 238, 199, 0.3)",
+          roadEdge: "rgba(58, 52, 80, 0.24)",
+          buildingOutline: "rgba(40, 34, 57, 0.72)"
+        },
+        violet: {
+          ground: [
+            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0193.png",
+            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0192.png",
+            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0194.png"
+          ],
+          path: [
+            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0156.png",
+            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0157.png",
+            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0191.png"
+          ],
+          patch: [
+            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0090.png",
+            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0091.png",
+            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0109.png"
+          ],
+          roofs: [
+            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0109.png",
+            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0113.png",
+            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0205.png",
+            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0119.png"
+          ],
+          walls: [
+            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0166.png",
+            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0164.png",
+            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0167.png"
+          ],
+          baseColor: "#c9b29a",
+          roadTint: "rgba(76, 63, 98, 0.052)",
+          roadLine: "rgba(255, 229, 170, 0.28)",
+          roadEdge: "rgba(47, 43, 70, 0.24)",
+          buildingOutline: "rgba(39, 30, 52, 0.72)"
+        },
+        slate: {
+          ground: [
+            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0193.png",
+            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0192.png",
+            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0194.png"
+          ],
+          path: [
+            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0156.png",
+            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0157.png",
+            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0191.png"
+          ],
+          patch: [
+            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0119.png",
+            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0098.png",
+            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0095.png"
+          ],
+          roofs: [
+            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0119.png",
+            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0109.png",
+            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0204.png",
+            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0205.png"
+          ],
+          walls: [
+            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0164.png",
+            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0165.png",
+            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0167.png"
+          ],
+          baseColor: "#c6b19b",
+          roadTint: "rgba(72, 60, 92, 0.052)",
+          roadLine: "rgba(246, 234, 193, 0.28)",
+          roadEdge: "rgba(48, 44, 72, 0.24)",
+          buildingOutline: "rgba(40, 31, 52, 0.72)"
+        },
+        sand: {
+          ground: [
+            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0193.png",
+            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0192.png",
+            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0194.png"
+          ],
+          path: [
+            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0156.png",
+            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0157.png",
+            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0191.png"
+          ],
+          patch: [
+            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0192.png",
+            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0095.png",
+            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0090.png"
+          ],
+          roofs: [
+            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0204.png",
+            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0119.png",
+            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0109.png"
+          ],
+          walls: [
+            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0166.png",
+            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0167.png",
+            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0165.png"
+          ],
+          baseColor: "#d0b493",
+          roadTint: "rgba(82, 66, 92, 0.05)",
+          roadLine: "rgba(242, 225, 172, 0.28)",
+          roadEdge: "rgba(70, 57, 90, 0.24)",
+          buildingOutline: "rgba(43, 33, 56, 0.72)"
+        }
+      };
+
+      function tileToWorldRect(tx, ty, tw, th) {
+        return {
+          x: MAP_LEFT + tx * TILE,
+          y: MAP_TOP + ty * TILE,
+          w: tw * TILE,
+          h: th * TILE
+        };
+      }
+
+      function cellsOverlap(a, b, pad = 0) {
+        return !(a.x + a.w + pad <= b.x || b.x + b.w + pad <= a.x || a.y + a.h + pad <= b.y || b.y + b.h + pad <= a.y);
+      }
+
+      function inBoundsTile(tx, ty) {
+        return tx >= 0 && tx < MAP_COLS && ty >= 0 && ty < MAP_ROWS;
+      }
+
+      function pickFrom(rng, list) {
+        return list[Math.floor(rng() * list.length)] || list[0];
+      }
+
+      function generateTownMap(level) {
+        const rng = makeRng(level.seed);
+        const theme = DISTRICT_THEMES[level.district] || DISTRICT_THEMES.rust;
+        const handcrafted = HANDCRAFTED_LEVEL_LAYOUTS[level.id - 1] || null;
+        const layoutBase = handcrafted || TOWN_LAYOUTS[level.style % TOWN_LAYOUTS.length];
+        const shiftX = handcrafted ? 0 : (level.id + level.style) % 2;
+        const shiftY = handcrafted ? 0 : Math.floor(level.id / 3) % 2;
+
+        const clampRect = (rect) => {
+          const x = clamp(rect.x + shiftX, 1, MAP_COLS - 2);
+          const y = clamp(rect.y + shiftY, 1, MAP_ROWS - 2);
+          const maxW = MAP_COLS - x - 1;
+          const maxH = MAP_ROWS - y - 1;
+          return {
+            x,
+            y,
+            w: clamp(rect.w, 1, Math.max(1, maxW)),
+            h: clamp(rect.h, 1, Math.max(1, maxH))
+          };
+        };
+
+        const layout = {
+          avenues: Array.from(new Set(layoutBase.avenues.map((x) => clamp(x + shiftX, 2, MAP_COLS - 4)))).sort((a, b) => a - b),
+          streets: Array.from(new Set(layoutBase.streets.map((y) => clamp(y + shiftY, 2, MAP_ROWS - 4)))).sort((a, b) => a - b),
+          connectors: (layoutBase.connectors || []).map(clampRect),
+          plazas: (layoutBase.plazas || []).map(clampRect),
+          patches: (layoutBase.patches || []).map(clampRect),
+          buildings: ((layoutBase.buildings && layoutBase.buildings.length > 0)
+            ? layoutBase.buildings
+            : (handcrafted ? (HANDCRAFTED_BUILDING_FOOTPRINTS[level.id - 1] || []) : [])
+          ).map(clampRect),
+          covers: (layoutBase.covers || []).map(clampRect),
+          props: (layoutBase.props || []).map((p) => ({
+            tx: clamp((p.tx || 1) + shiftX, 1, MAP_COLS - 2),
+            ty: clamp((p.ty || 1) + shiftY, 1, MAP_ROWS - 2),
+            tile: p.tile || null
+          }))
+        };
+
+        const tiles = Array.from({ length: MAP_ROWS }, () => new Array(MAP_COLS).fill(theme.ground[0]));
+        const roadMask = Array.from({ length: MAP_ROWS }, () => new Array(MAP_COLS).fill(false));
+        const occupiedMask = Array.from({ length: MAP_ROWS }, () => new Array(MAP_COLS).fill(false));
+
+        for (let y = 0; y < MAP_ROWS; y += 1) {
+          for (let x = 0; x < MAP_COLS; x += 1) {
+            const roll = rng();
+            if (roll < 0.045) {
+              tiles[y][x] = theme.ground[1] || theme.ground[0];
+            } else if (roll < 0.062) {
+              tiles[y][x] = theme.ground[2] || theme.ground[1] || theme.ground[0];
+            }
+          }
+        }
+
+        const paintPatchRect = (rect, tile) => {
+          const patchTile = tile || pickFrom(rng, theme.patch);
+          for (let y = rect.y; y < rect.y + rect.h; y += 1) {
+            for (let x = rect.x; x < rect.x + rect.w; x += 1) {
+              if (x <= 0 || y <= 0 || x >= MAP_COLS - 1 || y >= MAP_ROWS - 1) continue;
+              const border = x === rect.x || y === rect.y || x === rect.x + rect.w - 1 || y === rect.y + rect.h - 1;
+              if (!border || rng() < 0.72) {
+                tiles[y][x] = patchTile;
+              }
+            }
+          }
+        };
+
+        if (layout.patches.length > 0) {
+          for (let i = 0; i < layout.patches.length; i += 1) {
+            paintPatchRect(layout.patches[i], theme.patch[i % theme.patch.length]);
+          }
+        } else {
+          for (let i = 0; i < 2 + (level.id % 2); i += 1) {
+            const w = 4 + Math.floor(rng() * 6);
+            const h = 4 + Math.floor(rng() * 6);
+            const sx = 1 + Math.floor(rng() * Math.max(1, MAP_COLS - w - 1));
+            const sy = 1 + Math.floor(rng() * Math.max(1, MAP_ROWS - h - 1));
+            paintPatchRect({ x: sx, y: sy, w, h }, null);
+          }
+        }
+
+        const carveRoadRect = (rx, ry, rw, rh) => {
+          const x0 = clamp(rx, 1, MAP_COLS - 2);
+          const y0 = clamp(ry, 1, MAP_ROWS - 2);
+          const x1 = clamp(rx + rw - 1, 1, MAP_COLS - 2);
+          const y1 = clamp(ry + rh - 1, 1, MAP_ROWS - 2);
+
+          for (let y = y0; y <= y1; y += 1) {
+            for (let x = x0; x <= x1; x += 1) {
+              roadMask[y][x] = true;
+              const roll = rng();
+              if (roll < 0.86) {
+                tiles[y][x] = theme.path[0];
+              } else if (roll < 0.97) {
+                tiles[y][x] = theme.path[1] || theme.path[0];
+              } else {
+                tiles[y][x] = theme.path[2] || theme.path[1] || theme.path[0];
+              }
+            }
+          }
+        };
+
+        for (const avenue of layout.avenues) {
+          carveRoadRect(avenue, 1, 2, MAP_ROWS - 2);
+        }
+        for (const street of layout.streets) {
+          carveRoadRect(1, street, MAP_COLS - 2, 2);
+        }
+        for (const rect of layout.connectors) {
+          carveRoadRect(rect.x, rect.y, rect.w, rect.h);
+        }
+        for (const rect of layout.plazas) {
+          carveRoadRect(rect.x, rect.y, rect.w, rect.h);
+        }
+
+        let roadCells = 0;
+        for (let y = 1; y < MAP_ROWS - 1; y += 1) {
+          for (let x = 1; x < MAP_COLS - 1; x += 1) {
+            if (roadMask[y][x]) roadCells += 1;
+          }
+        }
+        const buildableCells = (MAP_COLS - 2) * (MAP_ROWS - 2) - roadCells;
+
+        const obstacles = [];
+        const buildings = [];
+        const landmarks = [];
+        const occupiedRects = [];
+
+        const safeSpawnRect = {
+          x: Math.floor(MAP_COLS / 2) - 3,
+          y: MAP_ROWS - 8,
+          w: 6,
+          h: 7
+        };
+
+        const markOccupied = (rect) => {
+          for (let y = rect.y; y < rect.y + rect.h; y += 1) {
+            for (let x = rect.x; x < rect.x + rect.w; x += 1) {
+              if (inBoundsTile(x, y)) occupiedMask[y][x] = true;
+            }
+          }
+        };
+
+        const cellRoad = (tx, ty) => inBoundsTile(tx, ty) && roadMask[ty][tx];
+
+        const canPlaceRect = (rect, padding = 0) => {
+          if (rect.x < 1 || rect.y < 1 || rect.x + rect.w > MAP_COLS - 1 || rect.y + rect.h > MAP_ROWS - 1) return false;
+          if (cellsOverlap(rect, safeSpawnRect, 0)) return false;
+
+          for (let y = rect.y; y < rect.y + rect.h; y += 1) {
+            for (let x = rect.x; x < rect.x + rect.w; x += 1) {
+              if (roadMask[y][x]) return false;
+            }
+          }
+
+          for (const other of occupiedRects) {
+            if (cellsOverlap(rect, other, padding)) return false;
+          }
+          return true;
+        };
+
+        const chooseDoor = (rect) => {
+          if (rect.w < 2 || rect.h < 2) return null;
+          const choices = [];
+
+          for (let x = rect.x + 1; x < rect.x + rect.w - 1; x += 1) {
+            if (cellRoad(x, rect.y - 1)) choices.push({ tx: x, ty: rect.y });
+            if (cellRoad(x, rect.y + rect.h)) choices.push({ tx: x, ty: rect.y + rect.h - 1 });
+          }
+          for (let y = rect.y + 1; y < rect.y + rect.h - 1; y += 1) {
+            if (cellRoad(rect.x - 1, y)) choices.push({ tx: rect.x, ty: y });
+            if (cellRoad(rect.x + rect.w, y)) choices.push({ tx: rect.x + rect.w - 1, ty: y });
+          }
+
+          if (choices.length === 0) {
+            const edge = Math.floor(rng() * 4);
+            if (edge === 0 && rect.w > 2) choices.push({ tx: rect.x + 1 + Math.floor(rng() * (rect.w - 2)), ty: rect.y });
+            if (edge === 1 && rect.w > 2) choices.push({ tx: rect.x + 1 + Math.floor(rng() * (rect.w - 2)), ty: rect.y + rect.h - 1 });
+            if (edge === 2 && rect.h > 2) choices.push({ tx: rect.x, ty: rect.y + 1 + Math.floor(rng() * (rect.h - 2)) });
+            if (edge === 3 && rect.h > 2) choices.push({ tx: rect.x + rect.w - 1, ty: rect.y + 1 + Math.floor(rng() * (rect.h - 2)) });
+          }
+
+          if (choices.length === 0) return null;
+          const door = choices[Math.floor(rng() * choices.length)];
+          door.tile = pickFrom(rng, ASSETS.tiles.doors);
+          return door;
+        };
+
+        const chooseFacadeSide = (rect) => {
+          const scores = { north: 0, south: 0, west: 0, east: 0 };
+          for (let x = rect.x; x < rect.x + rect.w; x += 1) {
+            if (cellRoad(x, rect.y - 1)) scores.north += 1;
+            if (cellRoad(x, rect.y + rect.h)) scores.south += 1;
+          }
+          for (let y = rect.y; y < rect.y + rect.h; y += 1) {
+            if (cellRoad(rect.x - 1, y)) scores.west += 1;
+            if (cellRoad(rect.x + rect.w, y)) scores.east += 1;
+          }
+
+          const sides = ["south", "north", "east", "west"];
+          let best = sides[0];
+          let bestScore = scores[best];
+          for (let i = 1; i < sides.length; i += 1) {
+            const side = sides[i];
+            if (scores[side] > bestScore) {
+              best = side;
+              bestScore = scores[side];
+            }
+          }
+          if (bestScore > 0) return best;
+          return rect.w >= rect.h ? "south" : "east";
+        };
+
+        const placeBuildingRect = (rect, styleTag) => {
+          if (rect.w < 3 || rect.h < 3) return false;
+          if (!canPlaceRect(rect, 0)) return false;
+
+          occupiedRects.push(rect);
+          markOccupied(rect);
+          obstacles.push(tileToWorldRect(rect.x, rect.y, rect.w, rect.h));
+
+          buildings.push({
+            tx: rect.x,
+            ty: rect.y,
+            tw: rect.w,
+            th: rect.h,
+            roofTile: pickFrom(rng, theme.roofs),
+            facadeTile: pickFrom(rng, theme.walls),
+            facadeSide: chooseFacadeSide(rect),
+            outline: theme.buildingOutline || "rgba(40, 30, 54, 0.72)",
+            door: chooseDoor(rect),
+            styleTag
+          });
+          return true;
+        };
+
+        const tryPlaceFootprint = (rect, styleTag) => {
+          if (placeBuildingRect(rect, styleTag)) return true;
+          const maxX = Math.max(1, MAP_COLS - 1 - rect.w);
+          const maxY = Math.max(1, MAP_ROWS - 1 - rect.h);
+
+          for (let ring = 1; ring <= 3; ring += 1) {
+            for (let oy = -ring; oy <= ring; oy += 1) {
+              for (let ox = -ring; ox <= ring; ox += 1) {
+                if (Math.abs(ox) !== ring && Math.abs(oy) !== ring) continue;
+                const shifted = {
+                  x: clamp(rect.x + ox, 1, maxX),
+                  y: clamp(rect.y + oy, 1, maxY),
+                  w: rect.w,
+                  h: rect.h
+                };
+                if (placeBuildingRect(shifted, `${styleTag}-shift`)) return true;
+              }
+            }
+          }
+          return false;
+        };
+
+        const buildAxisSegments = (length, cuts, width = 2) => {
+          const sortedCuts = Array.from(new Set(cuts.map((v) => clamp(Math.floor(v), 1, length - 3)))).sort((a, b) => a - b);
+          const segments = [];
+          let start = 1;
+          for (const cut of sortedCuts) {
+            const end = cut - 1;
+            if (end - start + 1 >= 4) segments.push({ start, end });
+            start = cut + width;
+          }
+          if (length - 2 - start + 1 >= 4) {
+            segments.push({ start, end: length - 2 });
+          }
+          return segments;
+        };
+
+        const xSegments = buildAxisSegments(MAP_COLS, layout.avenues, 2);
+        const ySegments = buildAxisSegments(MAP_ROWS, layout.streets, 2);
+        const blocks = [];
+        for (const xs of xSegments) {
+          for (const ys of ySegments) {
+            blocks.push({
+              x: xs.start,
+              y: ys.start,
+              w: xs.end - xs.start + 1,
+              h: ys.end - ys.start + 1
+            });
+          }
+        }
+
+        for (const footprint of layout.buildings) {
+          tryPlaceFootprint(footprint, "manual");
+        }
+
+        const manualCoverage = buildings.reduce((total, b) => total + b.tw * b.th, 0);
+        const coverageTarget = handcrafted ? 0.68 : 0.24;
+        const needsAutoFill = (
+          layout.buildings.length === 0 ||
+          manualCoverage < buildableCells * coverageTarget
+        );
+
+        if (needsAutoFill) {
+          for (let i = 0; i < blocks.length; i += 1) {
+            const block = blocks[i];
+            if (block.w < 4 || block.h < 4) continue;
+            if (!handcrafted && rng() < 0.2) continue;
+
+            const margin = handcrafted ? 0 : (block.w >= 8 && block.h >= 8 && ((i + level.id) % 2 === 0) ? 2 : 1);
+
+            const lot = {
+              x: block.x + margin,
+              y: block.y + margin,
+              w: block.w - margin * 2,
+              h: block.h - margin * 2
+            };
+            if (lot.w < 3 || lot.h < 3) continue;
+
+            if (handcrafted) {
+              if ((i + level.id) % 4 === 0 && lot.w >= 8) {
+                const split = Math.floor((lot.w - 1) / 2);
+                placeBuildingRect({ x: lot.x, y: lot.y, w: split, h: lot.h }, "infill-split-v");
+                placeBuildingRect({ x: lot.x + split + 1, y: lot.y, w: lot.w - split - 1, h: lot.h }, "infill-split-v");
+              } else if ((i + level.id) % 5 === 0 && lot.h >= 8) {
+                const split = Math.floor((lot.h - 1) / 2);
+                placeBuildingRect({ x: lot.x, y: lot.y, w: lot.w, h: split }, "infill-split-h");
+                placeBuildingRect({ x: lot.x, y: lot.y + split + 1, w: lot.w, h: lot.h - split - 1 }, "infill-split-h");
+              } else {
+                placeBuildingRect({
+                  x: lot.x,
+                  y: lot.y,
+                  w: Math.max(3, lot.w),
+                  h: Math.max(3, lot.h)
+                }, "infill-mono");
+              }
+              continue;
+            }
+
+            const pattern = (i + level.id + Math.floor(rng() * 2)) % 5;
+            if (pattern === 0) {
+              placeBuildingRect({
+                x: lot.x,
+                y: lot.y,
+                w: Math.max(3, lot.w),
+                h: Math.max(3, lot.h)
+              }, "mono");
+            } else if (pattern === 1 && lot.w >= 7) {
+              const half = Math.floor((lot.w - 1) / 2);
+              placeBuildingRect({ x: lot.x, y: lot.y, w: half, h: lot.h }, "split-v");
+              placeBuildingRect({ x: lot.x + half + 1, y: lot.y, w: lot.w - half - 1, h: lot.h }, "split-v");
+            } else if (pattern === 2 && lot.h >= 7) {
+              const half = Math.floor((lot.h - 1) / 2);
+              placeBuildingRect({ x: lot.x, y: lot.y, w: lot.w, h: half }, "split-h");
+              placeBuildingRect({ x: lot.x, y: lot.y + half + 1, w: lot.w, h: lot.h - half - 1 }, "split-h");
+            } else if (pattern === 3) {
+              const mainW = Math.max(3, Math.floor(lot.w * 0.62));
+              const sideH = Math.max(3, Math.floor(lot.h * 0.52));
+              placeBuildingRect({ x: lot.x, y: lot.y, w: mainW, h: lot.h }, "l-main");
+              placeBuildingRect({
+                x: lot.x + Math.max(0, lot.w - 3),
+                y: lot.y + Math.max(0, lot.h - sideH),
+                w: Math.min(3, lot.w),
+                h: sideH
+              }, "l-side");
+            } else {
+              const headH = Math.max(3, Math.floor(lot.h * 0.45));
+              placeBuildingRect({ x: lot.x, y: lot.y, w: lot.w, h: headH }, "courtyard-head");
+              if (lot.h - headH - 1 >= 3 && lot.w >= 4) {
+                const tailW = Math.max(3, Math.floor(lot.w * 0.46));
+                placeBuildingRect({
+                  x: lot.x + lot.w - tailW,
+                  y: lot.y + headH + 1,
+                  w: tailW,
+                  h: lot.h - headH - 1
+                }, "courtyard-tail");
+              }
+            }
+          }
+        }
+
+        const placeCoverRect = (rect) => {
+          const safeX = clamp(rect.x, 1, MAP_COLS - 2);
+          const safeY = clamp(rect.y, 1, MAP_ROWS - 2);
+          const clean = {
+            x: safeX,
+            y: safeY,
+            w: clamp(rect.w, 1, MAP_COLS - safeX - 1),
+            h: clamp(rect.h, 1, MAP_ROWS - safeY - 1)
+          };
+          if (clean.w <= 0 || clean.h <= 0) return false;
+          if (!canPlaceRect(clean, 0)) return false;
+          occupiedRects.push(clean);
+          markOccupied(clean);
+          obstacles.push(tileToWorldRect(clean.x, clean.y, clean.w, clean.h));
+          const coverRoof = pickFrom(rng, theme.roofs);
+          const coverEdge = pickFrom(rng, theme.walls);
+          for (let y = clean.y; y < clean.y + clean.h; y += 1) {
+            for (let x = clean.x; x < clean.x + clean.w; x += 1) {
+              const border = x === clean.x || y === clean.y || x === clean.x + clean.w - 1 || y === clean.y + clean.h - 1;
+              tiles[y][x] = border && rng() < 0.65 ? coverEdge : coverRoof;
+            }
+          }
+          return true;
+        };
+
+        let placedCoverCount = 0;
+        for (const rect of layout.covers) {
+          if (placeCoverRect(rect)) placedCoverCount += 1;
+        }
+
+        let attempts = 0;
+        const coverGoal = (handcrafted ? 4 : 4) + Math.floor(level.id / 6);
+        if (handcrafted) {
+          for (let i = 0; i < blocks.length && placedCoverCount < coverGoal; i += 1) {
+            const block = blocks[(i * 3 + level.id) % blocks.length];
+            if (!block || block.w < 4 || block.h < 4) continue;
+
+            const corners = [
+              { x: block.x, y: block.y },
+              { x: block.x + block.w - 2, y: block.y },
+              { x: block.x, y: block.y + block.h - 2 },
+              { x: block.x + block.w - 2, y: block.y + block.h - 2 }
+            ];
+
+            const start = (block.x + block.y + level.id) % corners.length;
+            for (let c = 0; c < corners.length && placedCoverCount < coverGoal; c += 1) {
+              const corner = corners[(start + c) % corners.length];
+              if (placeCoverRect({ x: corner.x, y: corner.y, w: 2, h: 2 })) {
+                placedCoverCount += 1;
+                break;
+              }
+            }
+          }
+        } else {
+          while (attempts < 300 && placedCoverCount < coverGoal) {
+            attempts += 1;
+            const tx = 1 + Math.floor(rng() * (MAP_COLS - 2));
+            const ty = 1 + Math.floor(rng() * (MAP_ROWS - 2));
+            if (roadMask[ty][tx] || occupiedMask[ty][tx]) continue;
+
+            const nearRoad = cellRoad(tx - 1, ty) || cellRoad(tx + 1, ty) || cellRoad(tx, ty - 1) || cellRoad(tx, ty + 1);
+            if (!nearRoad && rng() < 0.75) continue;
+
+            const rect = {
+              x: tx,
+              y: ty,
+              w: rng() < 0.22 ? 2 : 1,
+              h: rng() < 0.2 ? 2 : 1
+            };
+            if (placeCoverRect(rect)) placedCoverCount += 1;
+          }
+        }
+
+        const props = [];
+        const propUsed = new Set();
+        const addPropAt = (tx, ty, tile) => {
+          if (!inBoundsTile(tx, ty) || roadMask[ty][tx] || occupiedMask[ty][tx]) return false;
+          const key = `${tx}:${ty}`;
+          if (propUsed.has(key)) return false;
+          propUsed.add(key);
+          const world = tileToWorldRect(tx, ty, 1, 1);
+          props.push({
+            x: world.x,
+            y: world.y,
+            tile: tile || pickFrom(rng, ASSETS.tiles.props),
+            alpha: 0.78 + rng() * 0.2
+          });
+          return true;
+        };
+
+        for (const p of layout.props) {
+          addPropAt(p.tx, p.ty, p.tile);
+        }
+
+        attempts = 0;
+        const propGoal = (handcrafted ? 6 : 9) + Math.floor(level.id / 4);
+        while (props.length < propGoal && attempts < 420) {
+          attempts += 1;
+          const tx = 1 + Math.floor(rng() * (MAP_COLS - 2));
+          const ty = 1 + Math.floor(rng() * (MAP_ROWS - 2));
+          if (roadMask[ty][tx] || occupiedMask[ty][tx]) continue;
+
+          const nearRoad = cellRoad(tx - 1, ty) || cellRoad(tx + 1, ty) || cellRoad(tx, ty - 1) || cellRoad(tx, ty + 1);
+          if (!nearRoad && rng() < (handcrafted ? 0.7 : 0.55)) continue;
+
+          addPropAt(tx, ty, null);
+        }
+
+        for (const plaza of layout.plazas) {
+          const cx = plaza.x + Math.floor(plaza.w / 2);
+          const cy = plaza.y + Math.floor(plaza.h / 2);
+          if (inBoundsTile(cx, cy) && !occupiedMask[cy][cx]) {
+            landmarks.push({
+              tx: cx,
+              ty: cy,
+              tile: pickFrom(rng, ASSETS.tiles.extraction),
+              alpha: 0.75 + rng() * 0.15
+            });
+          }
+        }
+
+        const spawnNodesRaw = [];
+        for (let y = 2; y < MAP_ROWS - 2; y += 1) {
+          for (let x = 2; x < MAP_COLS - 2; x += 1) {
+            if (!roadMask[y][x]) continue;
+            if (occupiedMask[y][x]) continue;
+
+            const up = roadMask[y - 1][x];
+            const down = roadMask[y + 1][x];
+            const left = roadMask[y][x - 1];
+            const right = roadMask[y][x + 1];
+            const intersection = (up || down) && (left || right);
+            const straight = (up && down && !left && !right) || (left && right && !up && !down);
+
+            if ((intersection && (x + y + level.id) % 2 === 0) || (straight && (x * 5 + y * 3 + level.id) % 11 === 0)) {
+              spawnNodesRaw.push({ x: MAP_LEFT + x * TILE + TILE / 2, y: MAP_TOP + y * TILE + TILE / 2 });
+            }
+          }
+        }
+
+        for (let x = 2; x < MAP_COLS - 2; x += 4) {
+          spawnNodesRaw.push({ x: MAP_LEFT + x * TILE + TILE / 2, y: MAP_TOP + TILE * 1.5 });
+          spawnNodesRaw.push({ x: MAP_LEFT + x * TILE + TILE / 2, y: MAP_TOP + (MAP_ROWS - 1.5) * TILE });
+        }
+        for (let y = 3; y < MAP_ROWS - 3; y += 5) {
+          spawnNodesRaw.push({ x: MAP_LEFT + TILE * 1.5, y: MAP_TOP + y * TILE + TILE / 2 });
+          spawnNodesRaw.push({ x: MAP_LEFT + (MAP_COLS - 1.5) * TILE, y: MAP_TOP + y * TILE + TILE / 2 });
+        }
+
+        const spawnNodes = [];
+        const spawnSeen = new Set();
+        for (const node of spawnNodesRaw) {
+          const tx = Math.floor((node.x - MAP_LEFT) / TILE);
+          const ty = Math.floor((node.y - MAP_TOP) / TILE);
+          if (!inBoundsTile(tx, ty) || occupiedMask[ty][tx]) continue;
+
+          const key = `${Math.round(node.x)}:${Math.round(node.y)}`;
+          if (spawnSeen.has(key)) continue;
+          spawnSeen.add(key);
+          spawnNodes.push(node);
+        }
+
+        const freeNodes = [];
+        for (let y = 1; y < MAP_ROWS - 1; y += 1) {
+          for (let x = 1; x < MAP_COLS - 1; x += 1) {
+            if (occupiedMask[y][x]) continue;
+            freeNodes.push({
+              x: MAP_LEFT + x * TILE + TILE / 2,
+              y: MAP_TOP + y * TILE + TILE / 2
+            });
+          }
+        }
+
+        const map = {
+          district: level.district,
+          tiles,
+          roadMask,
+          obstacles,
+          buildings,
+          props,
+          landmarks,
+          spawnNodes,
+          freeNodes,
+          baseColor: theme.baseColor,
+          roadTint: theme.roadTint,
+          roadLine: theme.roadLine,
+          roadEdge: theme.roadEdge,
+          cacheCanvas: null
+        };
+
+        map.cacheCanvas = bakeMapCanvas(map);
+        return map;
+      }
+
+      function bakeMapCanvas(map) {
+        const surface = document.createElement("canvas");
+        surface.width = MAP_COLS * TILE;
+        surface.height = MAP_ROWS * TILE;
+        const sctx = surface.getContext("2d");
+
+        sctx.fillStyle = map.baseColor;
+        sctx.fillRect(0, 0, surface.width, surface.height);
+
+        for (let y = 0; y < MAP_ROWS; y += 1) {
+          for (let x = 0; x < MAP_COLS; x += 1) {
+            const tile = map.tiles[y][x];
+            if (!drawSpriteTo(sctx, tile, x * TILE, y * TILE, TILE, TILE, 1)) {
+              sctx.fillStyle = (x + y) % 2 === 0 ? "#ba8a6f" : "#c69879";
+              sctx.fillRect(x * TILE, y * TILE, TILE, TILE);
+            }
+          }
+        }
+
+        if (map.roadMask) {
+          for (let y = 1; y < MAP_ROWS - 1; y += 1) {
+            for (let x = 1; x < MAP_COLS - 1; x += 1) {
+              if (!map.roadMask[y][x]) continue;
+              const px = x * TILE;
+              const py = y * TILE;
+              const up = map.roadMask[y - 1][x];
+              const down = map.roadMask[y + 1][x];
+              const left = map.roadMask[y][x - 1];
+              const right = map.roadMask[y][x + 1];
+              sctx.fillStyle = map.roadTint || "rgba(93,84,120,0.08)";
+              sctx.fillRect(px, py, TILE, TILE);
+
+              const edgeCount = (!up ? 1 : 0) + (!down ? 1 : 0) + (!left ? 1 : 0) + (!right ? 1 : 0);
+              if (edgeCount >= 2) {
+                sctx.fillStyle = map.roadLine || "rgba(255,230,170,0.24)";
+                sctx.fillRect(px + 6, py + 6, 4, 4);
+              }
+            }
+          }
+        }
+
+        for (const building of map.buildings || []) {
+          const px = building.tx * TILE;
+          const py = building.ty * TILE;
+          const pw = building.tw * TILE;
+          const ph = building.th * TILE;
+
+          sctx.fillStyle = "rgba(17, 13, 26, 0.28)";
+          sctx.fillRect(px + 2, py + 2, pw, ph);
+
+          for (let ty = 0; ty < building.th; ty += 1) {
+            for (let tx = 0; tx < building.tw; tx += 1) {
+              drawSpriteTo(sctx, building.roofTile, px + tx * TILE, py + ty * TILE, TILE, TILE, 1);
+            }
+          }
+
+          if ((building.tx + building.ty) % 2 === 0 && (building.tw >= 5 || building.th >= 5)) {
+            sctx.fillStyle = "rgba(255, 246, 215, 0.06)";
+            if (building.tw >= building.th) {
+              for (let ty = 2; ty < building.th - 1; ty += 3) {
+                sctx.fillRect(px + TILE, py + ty * TILE, Math.max(0, pw - TILE * 2), 1);
+              }
+            } else {
+              for (let tx = 2; tx < building.tw - 1; tx += 3) {
+                sctx.fillRect(px + tx * TILE, py + TILE, 1, Math.max(0, ph - TILE * 2));
+              }
+            }
+          }
+
+          if (building.facadeTile) {
+            const side = building.facadeSide || "south";
+            if (side === "north") {
+              for (let tx = 0; tx < building.tw; tx += 1) {
+                drawSpriteTo(sctx, building.facadeTile, px + tx * TILE, py, TILE, TILE, 0.9);
+              }
+            } else if (side === "south") {
+              for (let tx = 0; tx < building.tw; tx += 1) {
+                drawSpriteTo(sctx, building.facadeTile, px + tx * TILE, py + (building.th - 1) * TILE, TILE, TILE, 0.9);
+              }
+            } else if (side === "west") {
+              for (let ty = 0; ty < building.th; ty += 1) {
+                drawSpriteTo(sctx, building.facadeTile, px, py + ty * TILE, TILE, TILE, 0.86);
+              }
+            } else {
+              for (let ty = 0; ty < building.th; ty += 1) {
+                drawSpriteTo(sctx, building.facadeTile, px + (building.tw - 1) * TILE, py + ty * TILE, TILE, TILE, 0.86);
+              }
+            }
+          }
+
+          sctx.strokeStyle = building.outline || "rgba(29, 22, 42, 0.65)";
+          sctx.lineWidth = 1;
+          sctx.strokeRect(px + 0.5, py + 0.5, pw - 1, ph - 1);
+
+          sctx.strokeStyle = "rgba(252, 240, 212, 0.17)";
+          sctx.beginPath();
+          sctx.moveTo(px + 0.5, py + 0.5);
+          sctx.lineTo(px + pw - 0.5, py + 0.5);
+          sctx.moveTo(px + 0.5, py + 0.5);
+          sctx.lineTo(px + 0.5, py + ph - 0.5);
+          sctx.stroke();
+
+          if (building.tw >= 5 && building.th >= 5 && (building.tx * 13 + building.ty * 11) % 3 === 0) {
+            const decoTile = ASSETS.tiles.props[(building.tx * 7 + building.ty * 11) % ASSETS.tiles.props.length];
+            const dx = px + Math.floor(building.tw / 2) * TILE - TILE / 2;
+            const dy = py + Math.floor(building.th / 2) * TILE - TILE / 2;
+            drawSpriteTo(sctx, decoTile, dx, dy, TILE, TILE, 0.42);
+          }
+
+          if (building.door) {
+            drawSpriteTo(sctx, building.door.tile, building.door.tx * TILE, building.door.ty * TILE, TILE, TILE, 1);
+          }
+        }
+
+        for (const landmark of map.landmarks || []) {
+          drawSpriteTo(sctx, landmark.tile, landmark.tx * TILE, landmark.ty * TILE, TILE, TILE, landmark.alpha || 0.8);
+        }
+
+        for (const prop of map.props) {
+          drawSpriteTo(sctx, prop.tile, prop.x - MAP_LEFT, prop.y - MAP_TOP, TILE, TILE, prop.alpha);
+        }
+
+        return surface;
+      }
+
+      function circleRectIntersect(x, y, r, rect) {
+        const nearestX = clamp(x, rect.x, rect.x + rect.w);
+        const nearestY = clamp(y, rect.y, rect.y + rect.h);
+        const dx = x - nearestX;
+        const dy = y - nearestY;
+        return dx * dx + dy * dy < r * r;
+      }
+
+      function rectCircleIntersect(rect, c) {
+        const nearestX = clamp(c.x, rect.x, rect.x + rect.w);
+        const nearestY = clamp(c.y, rect.y, rect.y + rect.h);
+        const dx = c.x - nearestX;
+        const dy = c.y - nearestY;
+        return dx * dx + dy * dy <= c.r * c.r;
+      }
+
+      function eachBlockingRect(callback) {
+        if (!state.map) return;
+        for (const rect of state.map.obstacles) callback(rect);
+
+        if (state.mission && state.mission.crates) {
+          for (const crate of state.mission.crates) {
+            if (!crate.destroyed) callback(crate);
+          }
+        }
+      }
+
+      function positionBlocked(x, y, radius) {
+        if (x - radius < MAP_LEFT + 2 || x + radius > MAP_LEFT + MAP_COLS * TILE - 2) return true;
+        if (y - radius < MAP_TOP + 2 || y + radius > MAP_TOP + MAP_ROWS * TILE - 2) return true;
+
+        let blocked = false;
+        eachBlockingRect((rect) => {
+          if (!blocked && circleRectIntersect(x, y, radius, rect)) blocked = true;
+        });
+        return blocked;
+      }
+
+      function resolveMove(entity, nextX, nextY, radius) {
+        if (!positionBlocked(nextX, entity.y, radius)) entity.x = nextX;
+        if (!positionBlocked(entity.x, nextY, radius)) entity.y = nextY;
+      }
+
+      function resolveMoveStepped(entity, dx, dy, radius) {
+        const steps = Math.max(1, Math.ceil(Math.max(Math.abs(dx), Math.abs(dy)) / 4));
+        const sx = dx / steps;
+        const sy = dy / steps;
+        for (let i = 0; i < steps; i += 1) {
+          resolveMove(entity, entity.x + sx, entity.y + sy, radius);
+        }
+      }
+
+      function worldToTile(x, y) {
+        return {
+          tx: clamp(Math.floor((x - MAP_LEFT) / TILE), 0, MAP_COLS - 1),
+          ty: clamp(Math.floor((y - MAP_TOP) / TILE), 0, MAP_ROWS - 1)
+        };
+      }
+
+      function tileToWorldCenter(tx, ty) {
+        return {
+          x: MAP_LEFT + tx * TILE + TILE * 0.5,
+          y: MAP_TOP + ty * TILE + TILE * 0.5
+        };
+      }
+
+      function buildWalkGrid(radius) {
+        const grid = Array.from({ length: MAP_ROWS }, () => new Array(MAP_COLS).fill(false));
+        for (let ty = 0; ty < MAP_ROWS; ty += 1) {
+          for (let tx = 0; tx < MAP_COLS; tx += 1) {
+            const center = tileToWorldCenter(tx, ty);
+            grid[ty][tx] = !positionBlocked(center.x, center.y, radius);
+          }
+        }
+        return grid;
+      }
+
+      function nearestWalkableTile(grid, tx, ty) {
+        if (grid[ty] && grid[ty][tx]) return { tx, ty };
+        for (let ring = 1; ring <= 4; ring += 1) {
+          for (let oy = -ring; oy <= ring; oy += 1) {
+            for (let ox = -ring; ox <= ring; ox += 1) {
+              if (Math.abs(ox) !== ring && Math.abs(oy) !== ring) continue;
+              const nx = tx + ox;
+              const ny = ty + oy;
+              if (!inBoundsTile(nx, ny)) continue;
+              if (grid[ny][nx]) return { tx: nx, ty: ny };
+            }
+          }
+        }
+        return null;
+      }
+
+      function findTilePath(grid, startTx, startTy, goalTx, goalTy) {
+        if (!inBoundsTile(startTx, startTy) || !inBoundsTile(goalTx, goalTy)) return [];
+
+        const start = nearestWalkableTile(grid, startTx, startTy);
+        const goal = nearestWalkableTile(grid, goalTx, goalTy);
+        if (!start || !goal) return [];
+        if (start.tx === goal.tx && start.ty === goal.ty) return [];
+
+        const total = MAP_COLS * MAP_ROWS;
+        const prev = new Int32Array(total);
+        prev.fill(-1);
+        const queue = new Int32Array(total);
+        let qh = 0;
+        let qt = 0;
+
+        const idx = (x, y) => y * MAP_COLS + x;
+        const startIdx = idx(start.tx, start.ty);
+        const goalIdx = idx(goal.tx, goal.ty);
+        prev[startIdx] = startIdx;
+        queue[qt++] = startIdx;
+
+        const dirs = [
+          [1, 0], [-1, 0], [0, 1], [0, -1]
+        ];
+
+        while (qh < qt) {
+          const cur = queue[qh++];
+          if (cur === goalIdx) break;
+          const cx = cur % MAP_COLS;
+          const cy = Math.floor(cur / MAP_COLS);
+
+          for (const [dx, dy] of dirs) {
+            const nx = cx + dx;
+            const ny = cy + dy;
+            if (!inBoundsTile(nx, ny) || !grid[ny][nx]) continue;
+            const ni = idx(nx, ny);
+            if (prev[ni] !== -1) continue;
+            prev[ni] = cur;
+            queue[qt++] = ni;
+          }
+        }
+
+        if (prev[goalIdx] === -1) return [];
+
+        const path = [];
+        let cur = goalIdx;
+        while (cur !== startIdx) {
+          const tx = cur % MAP_COLS;
+          const ty = Math.floor(cur / MAP_COLS);
+          path.push(tileToWorldCenter(tx, ty));
+          cur = prev[cur];
+          if (cur === -1) break;
+        }
+        path.reverse();
+        return path;
+      }
+
+      function findFreePoint(radius, rng, awayFrom, minDistance = 0, maxAttempts = 120) {
+        const freeNodes = state.map ? state.map.freeNodes : [];
+        if (freeNodes.length > 0) {
+          for (let i = 0; i < maxAttempts; i += 1) {
+            const node = freeNodes[Math.floor(rng() * freeNodes.length)];
+            if (!node) continue;
+            if (awayFrom && distSq(node, awayFrom) < minDistance * minDistance) continue;
+            if (!positionBlocked(node.x, node.y, radius)) return { x: node.x, y: node.y };
+          }
+        }
+
+        for (let i = 0; i < maxAttempts; i += 1) {
+          const x = MAP_LEFT + 16 + rng() * (MAP_COLS * TILE - 32);
+          const y = MAP_TOP + 16 + rng() * (MAP_ROWS * TILE - 32);
+          if (awayFrom && distSq({ x, y }, awayFrom) < minDistance * minDistance) continue;
+          if (!positionBlocked(x, y, radius)) return { x, y };
+        }
+
+        return { x: WIDTH * 0.5, y: HEIGHT * 0.6 };
+      }
+
+      function chooseEnemyType(level) {
+        const roll = Math.random();
+        if (level.id >= 13 && roll < 0.24) return "brute";
+        if (level.id >= 6 && roll < 0.58) return "gunner";
+        return "raider";
+      }
+
+      function spawnEnemy(type = chooseEnemyType(state.currentLevel)) {
+        const level = state.currentLevel;
+        if (!level || !state.player || !state.map) return false;
+
+        const spawnCandidates = state.map.spawnNodes;
+        let spot = null;
+        for (let i = 0; i < 36; i += 1) {
+          const candidate = spawnCandidates[Math.floor(Math.random() * spawnCandidates.length)];
+          if (!candidate) continue;
+          if (distSq(candidate, state.player) < 128 * 128) continue;
+          if (positionBlocked(candidate.x, candidate.y, 12)) continue;
+          let overlapsEnemy = false;
+          for (const enemy of state.enemies) {
+            const dx = enemy.x - candidate.x;
+            const dy = enemy.y - candidate.y;
+            if (dx * dx + dy * dy < 26 * 26) {
+              overlapsEnemy = true;
+              break;
+            }
+          }
+          if (overlapsEnemy) continue;
+          spot = candidate;
+          break;
+        }
+        if (!spot) return false;
+
+        const scale = 1 + state.levelIndex * 0.08;
+        const earlyAggroScale = state.levelIndex < 3 ? 0.84 : state.levelIndex < 6 ? 0.92 : 1;
+        let enemy;
+
+        if (type === "gunner") {
+          enemy = {
+            x: spot.x,
+            y: spot.y,
+            radius: 10,
+            type,
+            hp: 34 * scale,
+            maxHp: 34 * scale,
+            speed: (66 + state.levelIndex * 1.1) * earlyAggroScale,
+            hitFlash: 0,
+            fireCooldown: rand(1.2, 2),
+            contactCooldown: 0,
+            spriteIndex: 2 + Math.floor(Math.random() * 2),
+            alertTimer: 0,
+            pathTimer: 0,
+            path: [],
+            patrolTimer: rand(0.3, 1.1),
+            patrolDir: normalize(rand(-1, 1), rand(-1, 1))
+          };
+        } else if (type === "brute") {
+          enemy = {
+            x: spot.x,
+            y: spot.y,
+            radius: 12,
+            type,
+            hp: 88 * scale,
+            maxHp: 88 * scale,
+            speed: (52 + state.levelIndex * 0.9) * earlyAggroScale,
+            hitFlash: 0,
+            fireCooldown: 0,
+            contactCooldown: 0,
+            spriteIndex: 1 + Math.floor(Math.random() * 2),
+            alertTimer: 0,
+            pathTimer: 0,
+            path: [],
+            patrolTimer: rand(0.3, 1.1),
+            patrolDir: normalize(rand(-1, 1), rand(-1, 1))
+          };
+        } else {
+          enemy = {
+            x: spot.x,
+            y: spot.y,
+            radius: 11,
+            type,
+            hp: 44 * scale,
+            maxHp: 44 * scale,
+            speed: (84 + state.levelIndex * 1.3) * earlyAggroScale,
+            hitFlash: 0,
+            fireCooldown: 0,
+            contactCooldown: 0,
+            spriteIndex: Math.floor(Math.random() * 2),
+            alertTimer: 0,
+            pathTimer: 0,
+            path: [],
+            patrolTimer: rand(0.3, 1.1),
+            patrolDir: normalize(rand(-1, 1), rand(-1, 1))
+          };
+        }
+
+        state.enemies.push(enemy);
+        return true;
+      }
+
+      function spawnInitialEnemies(count) {
+        let spawned = 0;
+        while (spawned < count) {
+          const type = chooseEnemyType(state.currentLevel);
+          if (!spawnEnemy(type)) break;
+          spawned += 1;
+        }
+      }
+
+      function setupMission(level) {
+        const rng = makeRng(level.seed + 9007);
+        const earlySpawnPenalty = level.id <= 3 ? 2 : level.id <= 6 ? 1 : 0;
+        const mission = {
+          type: level.type,
+          title: "",
+          description: "",
+          progress: 0,
+          target: 1,
+          complete: false,
+          kills: 0,
+          terminals: [],
+          crates: [],
+          intel: [],
+          extraction: null
+        };
+
+        state.director = {
+          remaining: 0,
+          cooldown: 1.4,
+          rate: level.spawnRate,
+          active: true
+        };
+
+        if (level.type === "eliminate") {
+          const initial = Math.max(2, Math.min(9, 4 + Math.floor(level.id / 2) - earlySpawnPenalty));
+          const reserve = Math.max(3, Math.floor(level.enemyBudget * 0.65) - earlySpawnPenalty);
+          mission.title = "Bounty Sweep";
+          mission.description = "Eliminate all hostiles";
+          mission.target = initial + reserve;
+          state.director.remaining = reserve;
+          spawnInitialEnemies(initial);
+        } else if (level.type === "uplink") {
+          const terminalCount = level.id >= 12 ? 3 : 2;
+          mission.title = "Signal Hijack";
+          mission.description = "Activate all uplinks";
+          mission.target = terminalCount;
+
+          for (let i = 0; i < terminalCount; i += 1) {
+            const p = findFreePoint(12, rng, state.player, 80);
+            mission.terminals.push({
+              x: p.x,
+              y: p.y,
+              r: 14,
+              progress: 0,
+              target: 2.8,
+              done: false,
+              sprite: ASSETS.tiles.terminals[i % ASSETS.tiles.terminals.length]
+            });
+          }
+
+          state.director.remaining = Math.max(6, Math.floor(level.enemyBudget * 0.9) - earlySpawnPenalty);
+          spawnInitialEnemies(Math.max(3, 5 + Math.floor(level.id / 4) - earlySpawnPenalty));
+        } else if (level.type === "demolition") {
+          const crateCount = level.id >= 15 ? 4 : level.id >= 8 ? 3 : 2;
+          mission.title = "Supply Denial";
+          mission.description = "Destroy bounty caches";
+          mission.target = crateCount;
+
+          for (let i = 0; i < crateCount; i += 1) {
+            const p = findFreePoint(12, rng, state.player, 70);
+            const size = i % 2 === 0 ? 16 : 20;
+            mission.crates.push({
+              x: p.x - size / 2,
+              y: p.y - size / 2,
+              w: size,
+              h: size,
+              hp: 76 + level.id * 9,
+              maxHp: 76 + level.id * 9,
+              destroyed: false,
+              sprite: ASSETS.tiles.crates[i % ASSETS.tiles.crates.length]
+            });
+          }
+
+          state.director.remaining = Math.max(5, Math.floor(level.enemyBudget * 0.8) - earlySpawnPenalty);
+          spawnInitialEnemies(Math.max(3, 5 + Math.floor(level.id / 3) - earlySpawnPenalty));
+        } else if (level.type === "survive") {
+          mission.title = "Holdout";
+          mission.description = "Survive the assault";
+          mission.target = level.timer;
+          state.director.remaining = Math.ceil(level.timer / Math.max(0.7, level.spawnRate)) + 7 - earlySpawnPenalty;
+          spawnInitialEnemies(Math.max(4, 7 + Math.floor(level.id / 4) - earlySpawnPenalty));
+        } else {
+          mission.title = "Intel Recovery";
+          mission.description = "Collect intel and extract";
+          mission.target = 3;
+
+          for (let i = 0; i < mission.target; i += 1) {
+            const p = findFreePoint(10, rng, state.player, 60);
+            mission.intel.push({
+              x: p.x,
+              y: p.y,
+              r: 9,
+              collected: false,
+              sprite: ASSETS.tiles.intel[i % ASSETS.tiles.intel.length]
+            });
+          }
+
+          const ex = findFreePoint(16, rng, state.player, 130);
+          mission.extraction = {
+            x: ex.x,
+            y: ex.y,
+            r: 24,
+            progress: 0,
+            target: 4,
+            active: false,
+            sprite: ASSETS.tiles.extraction[0]
+          };
+
+          state.director.remaining = Math.max(8, Math.floor(level.enemyBudget * 1.05) - earlySpawnPenalty);
+          spawnInitialEnemies(Math.max(4, 6 + Math.floor(level.id / 4) - earlySpawnPenalty));
+        }
+
+        state.mission = mission;
+      }
+
+      function startLevel(index) {
+        state.levelIndex = index;
+        state.currentLevel = LEVELS[index];
+        state.map = generateTownMap(state.currentLevel);
+        state.pathGridTimer = 0;
+        state.pathGridByRadius = {};
+
+        state.enemies = [];
+        state.bullets = [];
+        state.enemyBullets = [];
+        state.floatingTexts = [];
+
+        const p = state.player;
+        p.x = WIDTH * 0.5;
+        p.y = HEIGHT - 82;
+        p.fireCooldown = 0;
+        p.dashCooldown = 0;
+        p.dashTimer = 0;
+        p.contactCooldown = 0;
+        p.invulnTimer = 0.2;
+        p.weaponIndex = clamp(state.build.weaponTier, 0, WEAPONS.length - 1);
+        controls.shoot = false;
+        controls.shootPointerId = null;
+
+        if (positionBlocked(p.x, p.y, p.radius)) {
+          const fallback = findFreePoint(12, makeRng(state.currentLevel.seed + 17), null, 0, 300);
+          p.x = fallback.x;
+          p.y = fallback.y;
+        }
+
+        state.timer = state.currentLevel.timer;
+        state.mode = "playing";
+        state.combo = 0;
+        state.comboTimer = 0;
+        state.levelBriefTimer = 3.4;
+
+        setupMission(state.currentLevel);
+
+        state.build.maxUnlockedTier = Math.max(state.build.maxUnlockedTier, Math.min(WEAPONS.length, 1 + Math.floor(state.currentLevel.id / 4)));
+        state.build.weaponTier = clamp(state.build.weaponTier, 0, state.build.maxUnlockedTier - 1);
+        state.player.weaponIndex = state.build.weaponTier;
+      }
+
+      function resetGame() {
+        state.mode = assetsLoaded ? "menu" : "loading";
+        state.score = 0;
+        state.levelIndex = 0;
+        state.timer = 0;
+        state.kills = 0;
+        state.combo = 0;
+        state.comboTimer = 0;
+        state.sdkReported = false;
+        state.isMuted = state.isMuted;
+        state.victory = false;
+        state.lastDamageAt = 0;
+        state.totalRuntime = 0;
+        state.floatingTexts = [];
+        state.enemies = [];
+        state.bullets = [];
+        state.enemyBullets = [];
+        state.upgradeChoices = [];
+        state.map = null;
+        state.mission = null;
+        state.currentLevel = null;
+        state.pathGridTimer = 0;
+        state.pathGridByRadius = {};
+        state.director = { remaining: 0, cooldown: 1, rate: 2, active: false };
+        state.build = createBuild();
+        state.player = makePlayer();
+        state.lastAimDir = { x: 1, y: 0 };
+        state.levelBriefTimer = 0;
+        controls.shoot = false;
+        controls.shootPointerId = null;
+        controls.joystick.active = false;
+      }
+
+      function startRun() {
+        state.score = 0;
+        state.kills = 0;
+        state.combo = 0;
+        state.comboTimer = 0;
+        state.sdkReported = false;
+        state.victory = false;
+        state.build = createBuild();
+        state.player = makePlayer();
+        controls.shoot = false;
+        controls.shootPointerId = null;
+        startLevel(0);
+      }
+
+      function addFloatingText(x, y, text, color = "#fff7c2") {
+        state.floatingTexts.push({ x, y, text, color, life: 0.72 });
+      }
+
+      function getMoveInput() {
+        let x = 0;
+        let y = 0;
+
+        if (keyState.has("ArrowLeft") || keyState.has("a") || keyState.has("A")) x -= 1;
+        if (keyState.has("ArrowRight") || keyState.has("d") || keyState.has("D")) x += 1;
+        if (keyState.has("ArrowUp") || keyState.has("w") || keyState.has("W")) y -= 1;
+        if (keyState.has("ArrowDown") || keyState.has("s") || keyState.has("S")) y += 1;
+
+        if (controls.joystick.active) {
+          x = controls.joystick.x;
+          y = controls.joystick.y;
+        }
+
+        return normalize(x, y);
+      }
+
+      function wantsShootInput() {
+        return controls.shoot ||
+          keyState.has("b") || keyState.has("B") ||
+          keyState.has("j") || keyState.has("J") ||
+          keyState.has("k") || keyState.has("K") ||
+          keyState.has("x") || keyState.has("X");
+      }
+
+      function nearestPlayerTarget() {
+        let best = null;
+        let bestDist = Infinity;
+
+        for (const enemy of state.enemies) {
+          const d = distSq(enemy, state.player);
+          if (d < bestDist) {
+            bestDist = d;
+            best = enemy;
+          }
+        }
+
+        if (best) return { x: best.x, y: best.y };
+
+        if (state.mission && state.mission.type === "demolition") {
+          for (const crate of state.mission.crates) {
+            if (crate.destroyed) continue;
+            const center = { x: crate.x + crate.w / 2, y: crate.y + crate.h / 2 };
+            const d = distSq(center, state.player);
+            if (d < bestDist) {
+              bestDist = d;
+              best = center;
+            }
+          }
+          if (best) return best;
+        }
+
+        return null;
+      }
+
+      function firePlayerShots(dirX, dirY) {
+        const p = state.player;
+        const weapon = WEAPONS[p.weaponIndex];
+        const projectiles = weapon.projectiles + state.build.multiShot;
+        const totalSpread = weapon.spread + state.build.multiShot * 0.03;
+
+        for (let i = 0; i < projectiles; i += 1) {
+          const t = projectiles === 1 ? 0 : i / (projectiles - 1) - 0.5;
+          const angle = Math.atan2(dirY, dirX) + t * totalSpread;
+          const vx = Math.cos(angle) * weapon.speed * state.build.bulletSpeedMult;
+          const vy = Math.sin(angle) * weapon.speed * state.build.bulletSpeedMult;
+
+          const crit = Math.random() < state.build.critChance;
+          const baseDamage = weapon.damage * state.build.damageMult;
+          const damage = crit ? baseDamage * 1.65 : baseDamage;
+
+          state.bullets.push({
+            x: p.x,
+            y: p.y,
+            vx,
+            vy,
+            radius: 3,
+            ttl: 1.25,
+            damage,
+            pierce: state.build.pierce,
+            crit,
+            color: weapon.color
+          });
+        }
+
+        p.fireCooldown = weapon.cooldown / state.build.fireRateMult;
+        playSfx("shoot", 0.24);
+      }
+
+      function fireEnemyBullet(enemy, dirX, dirY) {
+        state.enemyBullets.push({
+          x: enemy.x,
+          y: enemy.y,
+          vx: dirX * (enemy.type === "brute" ? 110 : 150),
+          vy: dirY * (enemy.type === "brute" ? 110 : 150),
+          radius: enemy.type === "brute" ? 5 : 4,
+          ttl: 2.1,
+          damage: enemy.type === "brute" ? 16 + state.levelIndex : 11 + state.levelIndex * 0.8,
+          color: enemy.type === "brute" ? "#ff8f6a" : "#ff7f7f"
+        });
+      }
+
+      function damagePlayer(rawAmount) {
+        const p = state.player;
+        if (p.invulnTimer > 0 || p.contactCooldown > 0 || p.dashTimer > 0) return;
+
+        const mitigated = rawAmount * (1 - clamp(state.build.armor, 0, 0.45));
+        p.hp -= mitigated;
+        p.contactCooldown = 0.42;
+        p.invulnTimer = 0.08;
+        state.lastDamageAt = 0.2;
+        state.combo = 0;
+        state.comboTimer = 0;
+
+        playSfx("hit", 0.35);
+        triggerHaptic();
+
+        if (p.hp <= 0) {
+          p.hp = 0;
+          endRun(false);
+        }
+      }
+
+      function onEnemyKilled(enemyIndex) {
+        const enemy = state.enemies[enemyIndex];
+        state.enemies.splice(enemyIndex, 1);
+
+        state.kills += 1;
+        state.combo = Math.min(20, state.combo + 1);
+        state.comboTimer = 2.4;
+
+        if (state.mission) {
+          state.mission.kills += 1;
+        }
+
+        const scoreGain = 72 + Math.floor(state.combo * 10);
+        state.score += scoreGain;
+        addFloatingText(enemy.x, enemy.y - 14, `+${scoreGain}`, enemy.type === "gunner" ? "#95d0ff" : enemy.type === "brute" ? "#ffae78" : "#ffe2a9");
+
+        playSfx("enemyDown", 0.3);
+      }
+
+      function updatePlayer(dt) {
+        const p = state.player;
+
+        p.fireCooldown = Math.max(0, p.fireCooldown - dt);
+        p.dashCooldown = Math.max(0, p.dashCooldown - dt);
+        p.contactCooldown = Math.max(0, p.contactCooldown - dt);
+        p.invulnTimer = Math.max(0, p.invulnTimer - dt);
+
+        if (controls.dash || keyState.has(" ")) {
+          if (p.dashCooldown <= 0 && p.dashTimer <= 0) {
+            p.dashTimer = 0.17;
+            p.dashCooldown = 1.55 * state.build.dashCooldownMult;
+            triggerHaptic();
+          }
+          controls.dash = false;
+        }
+
+        if (p.dashTimer > 0) {
+          p.dashTimer = Math.max(0, p.dashTimer - dt);
+        }
+
+        const move = getMoveInput();
+        const moveSpeed = p.baseSpeed * state.build.moveSpeedMult * (p.dashTimer > 0 ? 2.85 : 1);
+
+        if (Math.abs(move.x) > 0.01 || Math.abs(move.y) > 0.01) {
+          state.lastAimDir = { x: move.x, y: move.y };
+        }
+
+        resolveMoveStepped(p, move.x * moveSpeed * dt, move.y * moveSpeed * dt, p.radius);
+
+        if (wantsShootInput() && p.fireCooldown <= 0) {
+          const target = nearestPlayerTarget();
+          let dir = state.lastAimDir;
+          if (target) {
+            dir = normalize(target.x - p.x, target.y - p.y);
+          }
+          if (Math.abs(dir.x) > 0.01 || Math.abs(dir.y) > 0.01) {
+            state.lastAimDir = dir;
+            firePlayerShots(dir.x, dir.y);
+          }
+        }
+      }
+
+      function bulletHitsStaticObstacle(bullet) {
+        let hit = false;
+        eachBlockingRect((rect) => {
+          if (!hit && circleRectIntersect(bullet.x, bullet.y, bullet.radius, rect)) hit = true;
+        });
+        return hit;
+      }
+
+      function updatePlayerBullets(dt) {
+        const mission = state.mission;
+
+        for (let i = state.bullets.length - 1; i >= 0; i -= 1) {
+          const b = state.bullets[i];
+          b.x += b.vx * dt;
+          b.y += b.vy * dt;
+          b.ttl -= dt;
+
+          if (b.ttl <= 0 || b.x < MAP_LEFT - 6 || b.x > MAP_LEFT + MAP_COLS * TILE + 6 || b.y < MAP_TOP - 6 || b.y > MAP_TOP + MAP_ROWS * TILE + 6) {
+            state.bullets.splice(i, 1);
+            continue;
+          }
+
+          if (mission && mission.type === "demolition") {
+            let hitCrate = false;
+            for (const crate of mission.crates) {
+              if (crate.destroyed) continue;
+              if (rectCircleIntersect(crate, { x: b.x, y: b.y, r: b.radius })) {
+                crate.hp -= b.damage;
+                hitCrate = true;
+
+                if (crate.hp <= 0) {
+                  crate.hp = 0;
+                  crate.destroyed = true;
+                  state.score += 130;
+                  addFloatingText(crate.x + crate.w / 2, crate.y - 8, "CACHE DOWN", "#ffc89e");
+                  triggerHaptic();
+                  playSfx("enemyDown", 0.34);
+                }
+
+                if (b.pierce > 0) {
+                  b.pierce -= 1;
+                } else {
+                  state.bullets.splice(i, 1);
+                }
+                break;
+              }
+            }
+            if (hitCrate) continue;
+          }
+
+          let hitObstacle = false;
+          for (const rect of state.map.obstacles) {
+            if (circleRectIntersect(b.x, b.y, b.radius, rect)) {
+              hitObstacle = true;
+              break;
+            }
+          }
+          if (!hitObstacle && mission && mission.type === "demolition") {
+            for (const crate of mission.crates) {
+              if (!crate.destroyed && circleRectIntersect(b.x, b.y, b.radius, crate)) {
+                hitObstacle = true;
+                break;
+              }
+            }
+          }
+          if (hitObstacle) {
+            state.bullets.splice(i, 1);
+            continue;
+          }
+
+          for (let e = state.enemies.length - 1; e >= 0; e -= 1) {
+            const enemy = state.enemies[e];
+            const rr = b.radius + enemy.radius;
+            const dx = b.x - enemy.x;
+            const dy = b.y - enemy.y;
+            if (dx * dx + dy * dy <= rr * rr) {
+              enemy.hp -= b.damage;
+              enemy.hitFlash = 0.12;
+              enemy.alertTimer = Math.max(enemy.alertTimer || 0, 3.4);
+              enemy.pathTimer = 0;
+              if (b.crit) addFloatingText(enemy.x, enemy.y - 15, "CRIT", "#ff8a95");
+
+              if (enemy.hp <= 0) {
+                onEnemyKilled(e);
+              }
+
+              if (b.pierce > 0) {
+                b.pierce -= 1;
+              } else {
+                state.bullets.splice(i, 1);
+              }
+              break;
+            }
+          }
+        }
+      }
+
+      function updateEnemyBullets(dt) {
+        for (let i = state.enemyBullets.length - 1; i >= 0; i -= 1) {
+          const b = state.enemyBullets[i];
+          b.x += b.vx * dt;
+          b.y += b.vy * dt;
+          b.ttl -= dt;
+
+          if (b.ttl <= 0 || b.x < MAP_LEFT - 10 || b.x > MAP_LEFT + MAP_COLS * TILE + 10 || b.y < MAP_TOP - 10 || b.y > MAP_TOP + MAP_ROWS * TILE + 10) {
+            state.enemyBullets.splice(i, 1);
+            continue;
+          }
+
+          let blocked = false;
+          eachBlockingRect((rect) => {
+            if (!blocked && circleRectIntersect(b.x, b.y, b.radius, rect)) blocked = true;
+          });
+          if (blocked) {
+            state.enemyBullets.splice(i, 1);
+            continue;
+          }
+
+          const p = state.player;
+          const rr = b.radius + p.radius;
+          const dx = b.x - p.x;
+          const dy = b.y - p.y;
+          if (dx * dx + dy * dy <= rr * rr) {
+            state.enemyBullets.splice(i, 1);
+            damagePlayer(b.damage);
+          }
+        }
+      }
+
+      function updateEnemies(dt) {
+        const p = state.player;
+        const detectionScale = state.levelIndex < 3 ? 0.7 : state.levelIndex < 6 ? 0.86 : 1;
+        const aggressionScale = state.levelIndex < 3 ? 0.8 : state.levelIndex < 6 ? 0.92 : 1;
+        const contactScale = state.levelIndex < 3 ? 0.78 : state.levelIndex < 6 ? 0.9 : 1;
+        state.pathGridTimer -= dt;
+        if (state.pathGridTimer <= 0) {
+          state.pathGridTimer = 0.22;
+          state.pathGridByRadius = {};
+        }
+        const getWalkGrid = (radius) => {
+          const key = Math.round(radius);
+          if (!state.pathGridByRadius[key]) {
+            state.pathGridByRadius[key] = buildWalkGrid(Math.max(8, radius - 1));
+          }
+          return state.pathGridByRadius[key];
+        };
+
+        const followTargetPath = (enemy, targetX, targetY, speed, pathRefresh = 0.34) => {
+          enemy.pathTimer = (enemy.pathTimer || 0) - dt;
+
+          if (!enemy.path || enemy.pathTimer <= 0 || enemy.path.length === 0) {
+            const start = worldToTile(enemy.x, enemy.y);
+            const goal = worldToTile(targetX, targetY);
+            enemy.path = findTilePath(getWalkGrid(enemy.radius), start.tx, start.ty, goal.tx, goal.ty);
+            enemy.pathTimer = pathRefresh + Math.random() * 0.18;
+          }
+
+          let waypoint = enemy.path && enemy.path[0];
+          while (waypoint && Math.hypot(enemy.x - waypoint.x, enemy.y - waypoint.y) < 6) {
+            enemy.path.shift();
+            waypoint = enemy.path[0];
+          }
+
+          const dir = waypoint
+            ? normalize(waypoint.x - enemy.x, waypoint.y - enemy.y)
+            : normalize(targetX - enemy.x, targetY - enemy.y);
+
+          if (Math.abs(dir.x) > 0.01 || Math.abs(dir.y) > 0.01) {
+            resolveMoveStepped(enemy, dir.x * speed * dt, dir.y * speed * dt, enemy.radius);
+          }
+        };
+
+        for (const enemy of state.enemies) {
+          enemy.hitFlash = Math.max(0, enemy.hitFlash - dt);
+          enemy.contactCooldown = Math.max(0, enemy.contactCooldown - dt);
+          enemy.alertTimer = Math.max(0, (enemy.alertTimer || 0) - dt);
+          enemy.patrolTimer = Math.max(0, (enemy.patrolTimer || 0) - dt);
+
+          const toPlayer = normalize(p.x - enemy.x, p.y - enemy.y);
+          const distance = Math.hypot(p.x - enemy.x, p.y - enemy.y);
+          const detectBase = enemy.type === "gunner" ? 190 : enemy.type === "brute" ? 155 : 140;
+          const detectRange = detectBase * detectionScale + state.levelIndex * 2;
+          if (distance <= detectRange) {
+            enemy.alertTimer = Math.max(enemy.alertTimer, 2.2);
+          }
+
+          const alerted = enemy.alertTimer > 0;
+          const enemySpeed = enemy.speed * aggressionScale;
+
+          if (!alerted) {
+            if (enemy.patrolTimer <= 0) {
+              enemy.patrolTimer = rand(1, 2.1);
+              enemy.patrolDir = normalize(rand(-1, 1), rand(-1, 1));
+            }
+
+            if (enemy.patrolDir && (Math.abs(enemy.patrolDir.x) > 0.01 || Math.abs(enemy.patrolDir.y) > 0.01)) {
+              const patrolSpeed = enemySpeed * 0.22;
+              resolveMoveStepped(enemy, enemy.patrolDir.x * patrolSpeed * dt, enemy.patrolDir.y * patrolSpeed * dt, enemy.radius);
+            }
+
+            continue;
+          }
+
+          if (enemy.type === "raider") {
+            followTargetPath(enemy, p.x, p.y, enemySpeed, 0.32);
+          } else if (enemy.type === "gunner") {
+            if (distance > 165) {
+              followTargetPath(enemy, p.x, p.y, enemySpeed * 0.9, 0.36);
+            } else if (distance < 112) {
+              resolveMoveStepped(enemy, -toPlayer.x * enemySpeed * 0.72 * dt, -toPlayer.y * enemySpeed * 0.72 * dt, enemy.radius);
+            }
+
+            enemy.fireCooldown -= dt;
+            const shootRange = state.levelIndex < 4 ? 175 : 220;
+            if (enemy.fireCooldown <= 0 && distance < shootRange) {
+              enemy.fireCooldown = rand(1.15, 1.85);
+              fireEnemyBullet(enemy, toPlayer.x, toPlayer.y);
+            }
+          } else {
+            if (distance > 96) {
+              followTargetPath(enemy, p.x, p.y, enemySpeed * 0.76, 0.38);
+            }
+
+            enemy.fireCooldown -= dt;
+            const shootRange = state.levelIndex < 4 ? 132 : 172;
+            if (enemy.fireCooldown <= 0 && distance < shootRange) {
+              enemy.fireCooldown = rand(1.6, 2.35);
+              fireEnemyBullet(enemy, toPlayer.x, toPlayer.y);
+            }
+          }
+
+          const rr = enemy.radius + p.radius;
+          const dx = enemy.x - p.x;
+          const dy = enemy.y - p.y;
+          if (dx * dx + dy * dy <= rr * rr && enemy.contactCooldown <= 0) {
+            enemy.contactCooldown = 0.68;
+            if (enemy.type === "brute") {
+              damagePlayer((20 + state.levelIndex * 0.6) * contactScale);
+            } else if (enemy.type === "gunner") {
+              damagePlayer((12 + state.levelIndex * 0.5) * contactScale);
+            } else {
+              damagePlayer((14 + state.levelIndex * 0.55) * contactScale);
+            }
+          }
+        }
+      }
+
+      function missionProgressText() {
+        const m = state.mission;
+        if (!m) return "";
+
+        if (m.type === "eliminate") {
+          return `Hostiles ${m.progress}/${m.target}`;
+        }
+        if (m.type === "uplink") {
+          return `Uplinks ${m.progress}/${m.target}`;
+        }
+        if (m.type === "demolition") {
+          return `Caches ${m.progress}/${m.target}`;
+        }
+        if (m.type === "survive") {
+          return `Holdout ${(m.target - state.timer).toFixed(1)}/${m.target.toFixed(1)}s`;
+        }
+        if (m.type === "intel") {
+          if (m.extraction && m.extraction.active) {
+            return `Extract ${m.extraction.progress.toFixed(1)}/${m.extraction.target.toFixed(1)}s`;
+          }
+          return `Intel ${m.progress}/${m.target}`;
+        }
+
+        return "";
+      }
+
+      function updateMission(dt) {
+        const m = state.mission;
+        if (!m || m.complete) return;
+
+        if (m.type === "eliminate") {
+          m.progress = m.kills;
+          if (m.progress >= m.target && state.enemies.length === 0 && state.director.remaining <= 0) {
+            completeLevel();
+          }
+          return;
+        }
+
+        if (m.type === "uplink") {
+          let doneCount = 0;
+          for (const terminal of m.terminals) {
+            if (terminal.done) {
+              doneCount += 1;
+              continue;
+            }
+
+            const d = Math.hypot(state.player.x - terminal.x, state.player.y - terminal.y);
+            if (d <= terminal.r + state.player.radius + 2) {
+              terminal.progress += dt * (state.player.dashTimer > 0 ? 0.72 : 1.12);
+              if (terminal.progress >= terminal.target) {
+                terminal.progress = terminal.target;
+                terminal.done = true;
+                doneCount += 1;
+                state.score += 180;
+                addFloatingText(terminal.x, terminal.y - 12, "UPLINK", "#86e3ce");
+                triggerHaptic();
+                playSfx("reward", 0.42);
+              }
+            }
+          }
+
+          m.progress = doneCount;
+          if (m.progress >= m.target) {
+            completeLevel();
+          }
+          return;
+        }
+
+        if (m.type === "demolition") {
+          m.progress = m.crates.filter((c) => c.destroyed).length;
+          if (m.progress >= m.target) {
+            completeLevel();
+          }
+          return;
+        }
+
+        if (m.type === "survive") {
+          m.progress = m.target - state.timer;
+          return;
+        }
+
+        if (m.type === "intel") {
+          let collected = 0;
+          for (const intel of m.intel) {
+            if (intel.collected) {
+              collected += 1;
+              continue;
+            }
+
+            const d = Math.hypot(state.player.x - intel.x, state.player.y - intel.y);
+            if (d <= intel.r + state.player.radius + 2) {
+              intel.collected = true;
+              collected += 1;
+              state.score += 110;
+              addFloatingText(intel.x, intel.y - 10, "INTEL", "#95d0ff");
+              playSfx("reward", 0.38);
+              triggerHaptic();
+            }
+          }
+
+          m.progress = collected;
+          if (m.progress >= m.target && m.extraction) {
+            m.extraction.active = true;
+            const d = Math.hypot(state.player.x - m.extraction.x, state.player.y - m.extraction.y);
+            if (d <= m.extraction.r + state.player.radius) {
+              m.extraction.progress += dt;
+              if (m.extraction.progress >= m.extraction.target) {
+                completeLevel();
+              }
+            }
+          }
+        }
+      }
+
+      function updateSpawns(dt) {
+        const m = state.mission;
+        if (!m || m.complete || !state.director.active) return;
+
+        const earlyCap = state.levelIndex < 3 ? 8 : state.levelIndex < 6 ? 10 : 12;
+        const maxEnemies = earlyCap + Math.floor(state.levelIndex * 0.45);
+        if (state.enemies.length >= maxEnemies) return;
+
+        state.director.cooldown -= dt;
+        if (state.director.cooldown > 0) return;
+
+        if (m.type !== "survive" && state.director.remaining <= 0) return;
+
+        const spawned = spawnEnemy(chooseEnemyType(state.currentLevel));
+        const paceScale = state.levelIndex < 3 ? 1.3 : state.levelIndex < 6 ? 1.14 : 1;
+        state.director.cooldown = state.director.rate * paceScale * rand(0.78, 1.28);
+        if (spawned && m.type !== "survive") {
+          state.director.remaining -= 1;
+        }
+        if (spawned && m.type === "survive") {
+          state.director.remaining -= 1;
+          if (state.director.remaining <= 0) {
+            state.director.active = false;
+          }
+        }
+      }
+
+      function updateFloatingTexts(dt) {
+        for (let i = state.floatingTexts.length - 1; i >= 0; i -= 1) {
+          const f = state.floatingTexts[i];
+          f.life -= dt;
+          f.y -= 16 * dt;
+          if (f.life <= 0) {
+            state.floatingTexts.splice(i, 1);
+          }
+        }
+      }
+
+      function completeLevel() {
+        if (state.mode !== "playing") return;
+        if (!state.currentLevel || !state.player) return;
+
+        const m = state.mission;
+        if (m) m.complete = true;
+
+        const timeBonus = Math.max(0, Math.floor(state.timer * 12));
+        const healthBonus = Math.floor(state.player.hp * 3);
+        const levelBonus = 420 + state.currentLevel.id * 90;
+        const comboBonus = state.combo * 35;
+
+        state.score += levelBonus + timeBonus + healthBonus + comboBonus;
+        state.player.hp = Math.min(state.player.maxHp, state.player.hp + 18);
+        triggerHaptic();
+        playSfx("reward", 0.5);
+
+        if (state.levelIndex >= LEVEL_TOTAL - 1) {
+          endRun(true);
+          return;
+        }
+
+        chooseUpgrades();
+        state.mode = "upgrade";
+      }
+
+      function endRun(victory) {
+        state.mode = victory ? "victory" : "gameover";
+        state.victory = victory;
+
+        if (victory) {
+          state.score += Math.floor(state.player.hp) * 12;
+          state.score += 3000;
+          triggerHaptic();
+        } else {
+          playSfx("lose", 0.52);
+          triggerHaptic();
+        }
+
+        reportGameOver(Math.max(0, Math.floor(state.score)));
+      }
+
+      function upgradeCandidates() {
+        const candidates = [];
+        const b = state.build;
+
+        if (b.maxUnlockedTier < WEAPONS.length) {
+          const nextName = WEAPONS[b.maxUnlockedTier].name;
+          candidates.push({
+            id: "unlock-tier",
+            title: "Weapon Tier",
+            desc: `Unlock ${nextName} and equip it`,
+            apply: () => {
+              b.maxUnlockedTier += 1;
+              b.weaponTier = clamp(b.maxUnlockedTier - 1, 0, WEAPONS.length - 1);
+              state.player.weaponIndex = b.weaponTier;
+            }
+          });
+        }
+
+        if (b.weaponTier + 1 < b.maxUnlockedTier) {
+          const nextTier = b.weaponTier + 1;
+          candidates.push({
+            id: "equip-tier",
+            title: "Swap Weapon",
+            desc: `Equip ${WEAPONS[nextTier].name}`,
+            apply: () => {
+              b.weaponTier = nextTier;
+              state.player.weaponIndex = nextTier;
+            }
+          });
+        }
+
+        candidates.push(
+          {
+            id: "dmg",
+            title: "Calibrated Barrel",
+            desc: "+18% weapon damage",
+            apply: () => { b.damageMult *= 1.18; }
+          },
+          {
+            id: "fire",
+            title: "Rapid Bolt",
+            desc: "+14% fire rate",
+            apply: () => { b.fireRateMult *= 1.14; }
+          },
+          {
+            id: "speed",
+            title: "Kinetic Boots",
+            desc: "+12% movement speed",
+            apply: () => { b.moveSpeedMult *= 1.12; }
+          },
+          {
+            id: "dash",
+            title: "Dash Capacitor",
+            desc: "Dash cooldown -18%",
+            apply: () => { b.dashCooldownMult *= 0.82; }
+          },
+          {
+            id: "hp",
+            title: "Nanofiber Suit",
+            desc: "+18 max HP and restore 18 HP",
+            apply: () => {
+              b.maxHpBonus += 18;
+              state.player.maxHp += 18;
+              state.player.hp = Math.min(state.player.maxHp, state.player.hp + 18);
+            }
+          },
+          {
+            id: "med",
+            title: "Field Medkit",
+            desc: "Recover 34 HP",
+            apply: () => {
+              state.player.hp = Math.min(state.player.maxHp, state.player.hp + 34);
+            }
+          },
+          {
+            id: "pierce",
+            title: "Pierce Core",
+            desc: "+1 bullet pierce",
+            apply: () => {
+              b.pierce = Math.min(4, b.pierce + 1);
+            }
+          },
+          {
+            id: "crit",
+            title: "Critical Optics",
+            desc: "+8% critical chance",
+            apply: () => {
+              b.critChance = Math.min(0.55, b.critChance + 0.08);
+            }
+          },
+          {
+            id: "multishot",
+            title: "Scatter Burst",
+            desc: "+1 projectile per shot",
+            apply: () => {
+              b.multiShot = Math.min(2, b.multiShot + 1);
+            }
+          },
+          {
+            id: "armor",
+            title: "Armor Weave",
+            desc: "Damage taken -8%",
+            apply: () => {
+              b.armor = Math.min(0.4, b.armor + 0.08);
+            }
+          },
+          {
+            id: "velocity",
+            title: "Longshot Rounds",
+            desc: "+18% bullet speed",
+            apply: () => {
+              b.bulletSpeedMult *= 1.18;
+            }
+          }
+        );
+
+        return candidates;
+      }
+
+      function chooseUpgrades() {
+        const pool = upgradeCandidates();
+        const picks = [];
+
+        while (picks.length < 3 && pool.length > 0) {
+          const index = Math.floor(Math.random() * pool.length);
+          const choice = pool.splice(index, 1)[0];
+          picks.push(choice);
+        }
+
+        state.upgradeChoices = picks;
+      }
+
+      function updatePlaying(dt) {
+        if (!state.player || !state.currentLevel) return;
+
+        state.totalRuntime += dt;
+
+        if (state.comboTimer > 0) {
+          state.comboTimer -= dt;
+          if (state.comboTimer <= 0) {
+            state.combo = 0;
+            state.comboTimer = 0;
+          }
+        }
+
+        if (state.lastDamageAt > 0) {
+          state.lastDamageAt -= dt;
+        }
+        if (state.levelBriefTimer > 0) {
+          state.levelBriefTimer = Math.max(0, state.levelBriefTimer - dt);
+        }
+
+        updatePlayer(dt);
+        updatePlayerBullets(dt);
+        updateEnemyBullets(dt);
+        updateEnemies(dt);
+        updateMission(dt);
+        updateSpawns(dt);
+        updateFloatingTexts(dt);
+
+        state.timer -= dt;
+        if (state.timer <= 0) {
+          state.timer = 0;
+          if (state.currentLevel.type === "survive") {
+            if (!state.mission.complete) completeLevel();
+          } else if (state.mode === "playing") {
+            endRun(false);
+          }
+        }
+      }
+
+      function update(dt) {
+        if (state.mode === "playing") updatePlaying(dt);
+      }
+
+      function drawMap() {
+        if (!state.map) return;
+        if (state.map.cacheCanvas) {
+          ctx.drawImage(state.map.cacheCanvas, MAP_LEFT, MAP_TOP);
+        }
+      }
+
+      function drawMissionObjects() {
+        const m = state.mission;
+        if (!m) return;
+
+        if (m.type === "uplink") {
+          for (const terminal of m.terminals) {
+            const size = 18;
+            drawSprite(terminal.sprite, terminal.x - size / 2, terminal.y - size / 2, size, size, terminal.done ? 0.95 : 1);
+            ctx.strokeStyle = terminal.done ? "#86e3ce" : "rgba(255,255,255,0.7)";
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.arc(terminal.x, terminal.y, terminal.r, -Math.PI / 2, -Math.PI / 2 + (terminal.progress / terminal.target) * Math.PI * 2);
+            ctx.stroke();
+          }
+        }
+
+        if (m.type === "demolition") {
+          for (const crate of m.crates) {
+            if (crate.destroyed) {
+              ctx.fillStyle = "rgba(44,32,48,0.7)";
+              ctx.fillRect(crate.x, crate.y, crate.w, crate.h);
+              continue;
+            }
+            drawSprite(crate.sprite, crate.x, crate.y, crate.w, crate.h, 1);
+            const ratio = clamp(crate.hp / crate.maxHp, 0, 1);
+            ctx.fillStyle = "rgba(19,15,26,0.8)";
+            ctx.fillRect(crate.x, crate.y - 5, crate.w, 3);
+            ctx.fillStyle = "#ffb88a";
+            ctx.fillRect(crate.x, crate.y - 5, crate.w * ratio, 3);
+          }
+        }
+
+        if (m.type === "intel") {
+          for (const intel of m.intel) {
+            if (intel.collected) continue;
+            const pulse = 0.55 + Math.sin(state.totalRuntime * 6 + intel.x * 0.02) * 0.2;
+            drawSprite(intel.sprite, intel.x - 8, intel.y - 8, 16, 16, 1);
+            ctx.strokeStyle = `rgba(149,208,255,${pulse})`;
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.arc(intel.x, intel.y, intel.r + 2, 0, Math.PI * 2);
+            ctx.stroke();
+          }
+
+          if (m.extraction) {
+            const ex = m.extraction;
+            const pulse = 0.4 + Math.sin(state.totalRuntime * 4) * 0.12;
+            ctx.strokeStyle = ex.active ? `rgba(134,227,206,${0.85 + pulse})` : `rgba(255,255,255,${0.35 + pulse})`;
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.arc(ex.x, ex.y, ex.r, 0, Math.PI * 2);
+            ctx.stroke();
+
+            drawSprite(ex.sprite, ex.x - 8, ex.y - 8, 16, 16, ex.active ? 1 : 0.6);
+
+            if (ex.active) {
+              ctx.strokeStyle = "#86e3ce";
+              ctx.lineWidth = 3;
+              ctx.beginPath();
+              ctx.arc(ex.x, ex.y, ex.r + 5, -Math.PI / 2, -Math.PI / 2 + (ex.progress / ex.target) * Math.PI * 2);
+              ctx.stroke();
+            }
+          }
+        }
+      }
+
+      function drawEntities() {
+        for (const b of state.bullets) {
+          ctx.fillStyle = b.color;
+          ctx.beginPath();
+          ctx.arc(b.x, b.y, b.radius, 0, Math.PI * 2);
+          ctx.fill();
+        }
+
+        for (const b of state.enemyBullets) {
+          ctx.fillStyle = b.color;
+          ctx.beginPath();
+          ctx.arc(b.x, b.y, b.radius, 0, Math.PI * 2);
+          ctx.fill();
+        }
+
+        for (const enemy of state.enemies) {
+          const sprite = ASSETS.enemy[enemy.spriteIndex % ASSETS.enemy.length];
+          drawSprite(sprite, enemy.x - 12, enemy.y - 12, 24, 24, 1);
+
+          if (enemy.hitFlash > 0) {
+            ctx.fillStyle = `rgba(255,255,255,${enemy.hitFlash * 5})`;
+            ctx.beginPath();
+            ctx.arc(enemy.x, enemy.y, enemy.radius + 3, 0, Math.PI * 2);
+            ctx.fill();
+          }
+
+          const hpRatio = clamp(enemy.hp / enemy.maxHp, 0, 1);
+          ctx.fillStyle = "rgba(25, 18, 35, 0.9)";
+          ctx.fillRect(enemy.x - 14, enemy.y - 16, 28, 3);
+          ctx.fillStyle = enemy.type === "gunner" ? "#95d0ff" : enemy.type === "brute" ? "#ffb07b" : "#ffd28f";
+          ctx.fillRect(enemy.x - 14, enemy.y - 16, 28 * hpRatio, 3);
+        }
+
+        const p = state.player;
+        ctx.save();
+        if (state.lastDamageAt > 0) ctx.globalAlpha = 0.58;
+        drawSprite(ASSETS.player[state.levelIndex % ASSETS.player.length], p.x - 12, p.y - 12, 24, 24, 1);
+        ctx.restore();
+
+        if (p.dashTimer > 0) {
+          ctx.strokeStyle = "rgba(255,255,255,0.72)";
+          ctx.beginPath();
+          ctx.arc(p.x, p.y, p.radius + 8, 0, Math.PI * 2);
+          ctx.stroke();
+        }
+
+        for (const f of state.floatingTexts) {
+          ctx.globalAlpha = clamp(f.life / 0.72, 0, 1);
+          ctx.fillStyle = f.color;
+          ctx.font = "bold 10px Trebuchet MS";
+          ctx.textAlign = "center";
+          ctx.fillText(f.text, f.x, f.y);
+          ctx.globalAlpha = 1;
+        }
+        ctx.textAlign = "left";
+      }
+
+      function drawHud() {
+        const p = state.player;
+        const level = state.currentLevel;
+        const mission = state.mission;
+
+        ctx.fillStyle = "rgba(16, 12, 22, 0.92)";
+        ctx.fillRect(0, 0, WIDTH, HUD_HEIGHT);
+        ctx.strokeStyle = "rgba(255,255,255,0.16)";
+        ctx.beginPath();
+        ctx.moveTo(0, HUD_HEIGHT + 0.5);
+        ctx.lineTo(WIDTH, HUD_HEIGHT + 0.5);
+        ctx.stroke();
+
+        const hpRatio = clamp(p.hp / p.maxHp, 0, 1);
+        ctx.fillStyle = "#44354f";
+        ctx.fillRect(8, 8, 98, 10);
+        ctx.fillStyle = hpRatio > 0.4 ? "#7ce596" : "#ff8c8c";
+        ctx.fillRect(8, 8, 98 * hpRatio, 10);
+        ctx.strokeStyle = "rgba(255,255,255,0.25)";
+        ctx.strokeRect(8, 8, 98, 10);
+
+        ctx.fillStyle = "#f4eff9";
+        ctx.font = "bold 10px Trebuchet MS";
+        ctx.fillText(`HP ${Math.ceil(p.hp)}/${Math.ceil(p.maxHp)}`, 10, 31);
+
+        ctx.fillText(`Mission ${level.id}/${LEVEL_TOTAL}`, 118, 14);
+        ctx.fillText(`Time ${state.timer.toFixed(1)}s`, 118, 30);
+
+        ctx.textAlign = "right";
+        ctx.fillText(`Score ${Math.floor(state.score)}`, WIDTH - 10, 14);
+        ctx.fillText(`Combo x${Math.max(1, state.combo)}`, WIDTH - 10, 30);
+
+        ctx.textAlign = "left";
+        ctx.fillStyle = "#d9cce3";
+        ctx.font = "10px Trebuchet MS";
+        ctx.fillText(`${mission.description} • ${missionProgressText()}`, 10, 46);
+
+        const weapon = WEAPONS[p.weaponIndex];
+        drawSprite(ASSETS.weapon[weapon.sprite], WIDTH - 40, 30, 22, 22, 1);
+      }
+
+      function drawTouchUi() {
+        if (state.mode !== "playing") return;
+
+        const baseX = 76;
+        const baseY = HEIGHT - 72;
+        const { dashX, dashY, shootX, shootY } = getTouchButtonCenters();
+
+        ctx.save();
+        ctx.globalAlpha = 0.32;
+        ctx.strokeStyle = "#f4eff9";
+        ctx.lineWidth = 2;
+
+        ctx.beginPath();
+        ctx.arc(baseX, baseY, 34, 0, Math.PI * 2);
+        ctx.stroke();
+
+        const stickX = controls.joystick.active ? baseX + controls.joystick.x * 18 : baseX;
+        const stickY = controls.joystick.active ? baseY + controls.joystick.y * 18 : baseY;
+        ctx.beginPath();
+        ctx.arc(stickX, stickY, 14, 0, Math.PI * 2);
+        ctx.stroke();
+
+        ctx.beginPath();
+        ctx.arc(shootX, shootY, TOUCH_SHOOT_RADIUS, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.font = "bold 11px Trebuchet MS";
+        ctx.fillStyle = "#f4eff9";
+        ctx.textAlign = "center";
+        ctx.fillText("FIRE", shootX, shootY + 4);
+
+        ctx.beginPath();
+        ctx.arc(dashX, dashY, TOUCH_DASH_RADIUS, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.fillText("DASH", dashX, dashY + 4);
+
+        ctx.restore();
+        ctx.textAlign = "left";
+      }
+
+      function drawMissionBrief() {
+        if (state.mode !== "playing" || state.levelBriefTimer <= 0 || !state.currentLevel || !state.mission) return;
+
+        const fadeIn = clamp((3.4 - state.levelBriefTimer) / 0.25, 0, 1);
+        const fadeOut = clamp(state.levelBriefTimer / 0.45, 0, 1);
+        const alpha = Math.min(fadeIn, fadeOut);
+        if (alpha <= 0) return;
+
+        const cardW = WIDTH - 44;
+        const cardH = 74;
+        const cardX = 22;
+        const cardY = HUD_HEIGHT + 14;
+
+        ctx.save();
+        ctx.globalAlpha = alpha;
+        ctx.fillStyle = "rgba(16, 12, 24, 0.82)";
+        ctx.fillRect(cardX, cardY, cardW, cardH);
+        ctx.strokeStyle = "rgba(247, 159, 121, 0.9)";
+        ctx.lineWidth = 2;
+        ctx.strokeRect(cardX + 1, cardY + 1, cardW - 2, cardH - 2);
+
+        ctx.fillStyle = "#ffe8cf";
+        ctx.font = "bold 12px Trebuchet MS";
+        ctx.textAlign = "left";
+        ctx.fillText(`Mission ${state.currentLevel.id}: ${state.currentLevel.name}`, cardX + 12, cardY + 20);
+
+        ctx.fillStyle = "#d7ccdf";
+        ctx.font = "11px Trebuchet MS";
+        ctx.fillText(`Objective: ${state.mission.description}`, cardX + 12, cardY + 40);
+        ctx.fillText(`Goal: ${missionProgressText()}`, cardX + 12, cardY + 57);
+
+        ctx.restore();
+      }
+
+      function drawPlaying() {
+        drawMap();
+        drawMissionObjects();
+        drawEntities();
+        drawHud();
+        drawMissionBrief();
+        drawTouchUi();
+      }
+
+      function wrapText(text, x, y, maxWidth, lineHeight) {
+        const words = text.split(" ");
+        let line = "";
+        for (let i = 0; i < words.length; i += 1) {
+          const test = line ? `${line} ${words[i]}` : words[i];
+          if (ctx.measureText(test).width > maxWidth) {
+            ctx.fillText(line, x, y);
+            line = words[i];
+            y += lineHeight;
+          } else {
+            line = test;
+          }
+        }
+        if (line) ctx.fillText(line, x, y);
+      }
+
+      function drawCard(x, y, w, h, title, desc) {
+        ctx.fillStyle = "#2a2434";
+        ctx.fillRect(x, y, w, h);
+        ctx.strokeStyle = "rgba(255,255,255,0.22)";
+        ctx.lineWidth = 2;
+        ctx.strokeRect(x + 1, y + 1, w - 2, h - 2);
+
+        ctx.fillStyle = "#ffe8cf";
+        ctx.font = "bold 13px Trebuchet MS";
+        ctx.fillText(title, x + 12, y + 24);
+        ctx.fillStyle = "#d7ccdf";
+        ctx.font = "11px Trebuchet MS";
+        wrapText(desc, x + 12, y + 44, w - 24, 14);
+      }
+
+      function drawMenu() {
+        ctx.fillStyle = "#be8f72";
+        ctx.fillRect(0, 0, WIDTH, HEIGHT);
+        ctx.fillStyle = "rgba(14, 10, 20, 0.6)";
+        ctx.fillRect(0, 0, WIDTH, HEIGHT);
+
+        ctx.fillStyle = "#ffe8c9";
+        ctx.font = "bold 34px Trebuchet MS";
+        ctx.textAlign = "center";
+        ctx.fillText("BOUNTY", WIDTH / 2, 142);
+        ctx.fillText("CIRCUIT", WIDTH / 2, 176);
+
+        ctx.font = "12px Trebuchet MS";
+        ctx.fillStyle = "#d7ccdf";
+        ctx.fillText("20-mission solo run", WIDTH / 2, 208);
+
+        const button = { x: WIDTH / 2 - 104, y: 246, w: 208, h: 56 };
+        ctx.fillStyle = "#3a2f47";
+        ctx.fillRect(button.x, button.y, button.w, button.h);
+        ctx.strokeStyle = "#f79f79";
+        ctx.lineWidth = 2;
+        ctx.strokeRect(button.x + 1, button.y + 1, button.w - 2, button.h - 2);
+
+        ctx.fillStyle = "#ffe8cf";
+        ctx.font = "bold 20px Trebuchet MS";
+        ctx.fillText("START RUN", WIDTH / 2, 282);
+
+        ctx.font = "11px Trebuchet MS";
+        ctx.fillStyle = "#d7ccdf";
+        ctx.fillText("Move: left joystick / WASD", WIDTH / 2, 344);
+        ctx.fillText("Fire: upper-right button / J", WIDTH / 2, 362);
+        ctx.fillText("Dash: lower-right button / Space", WIDTH / 2, 380);
+        ctx.fillText("Mission briefing appears at each level start", WIDTH / 2, 398);
+
+        ctx.font = "10px Trebuchet MS";
+        ctx.fillStyle = "#ad9ab9";
+        ctx.fillText("Press F for fullscreen", WIDTH / 2, 430);
+        ctx.textAlign = "left";
+      }
+
+      function drawUpgrade() {
+        drawMap();
+        drawMissionObjects();
+
+        ctx.fillStyle = "rgba(14, 10, 20, 0.8)";
+        ctx.fillRect(0, 0, WIDTH, HEIGHT);
+
+        ctx.fillStyle = "#ffe8cf";
+        ctx.font = "bold 20px Trebuchet MS";
+        ctx.textAlign = "center";
+        ctx.fillText("Mission Cleared", WIDTH / 2, 88);
+        ctx.font = "12px Trebuchet MS";
+        ctx.fillStyle = "#d7ccdf";
+        ctx.fillText(`Choose one upgrade before Mission ${state.levelIndex + 2}`, WIDTH / 2, 108);
+
+        const startY = 144;
+        const gap = 14;
+        const cardH = 94;
+        const cardW = WIDTH - 42;
+
+        for (let i = 0; i < state.upgradeChoices.length; i += 1) {
+          const card = state.upgradeChoices[i];
+          const x = 21;
+          const y = startY + i * (cardH + gap);
+          drawCard(x, y, cardW, cardH, card.title, card.desc);
+          card.hitbox = { x, y, w: cardW, h: cardH };
+        }
+
+        ctx.textAlign = "left";
+      }
+
+      function drawEndScreen() {
+        drawMap();
+        ctx.fillStyle = "rgba(13, 9, 19, 0.78)";
+        ctx.fillRect(0, 0, WIDTH, HEIGHT);
+
+        ctx.textAlign = "center";
+        ctx.fillStyle = state.victory ? "#86e3ce" : "#ff9c9c";
+        ctx.font = "bold 30px Trebuchet MS";
+        ctx.fillText(state.victory ? "Campaign Complete" : "Run Failed", WIDTH / 2, 154);
+
+        ctx.fillStyle = "#f5eefe";
+        ctx.font = "bold 14px Trebuchet MS";
+        ctx.fillText(`Score ${Math.floor(state.score)}`, WIDTH / 2, 198);
+        ctx.fillText(`Missions ${state.victory ? LEVEL_TOTAL : state.levelIndex + 1}/${LEVEL_TOTAL}`, WIDTH / 2, 220);
+        ctx.fillText(`Kills ${state.kills}`, WIDTH / 2, 242);
+
+        const button = { x: WIDTH / 2 - 104, y: 292, w: 208, h: 54 };
+        ctx.fillStyle = "#3a2f47";
+        ctx.fillRect(button.x, button.y, button.w, button.h);
+        ctx.strokeStyle = "#f79f79";
+        ctx.lineWidth = 2;
+        ctx.strokeRect(button.x + 1, button.y + 1, button.w - 2, button.h - 2);
+
+        ctx.fillStyle = "#ffe8cf";
+        ctx.font = "bold 19px Trebuchet MS";
+        ctx.fillText("PLAY AGAIN", WIDTH / 2, 326);
+
+        ctx.font = "11px Trebuchet MS";
+        ctx.fillStyle = "#d7ccdf";
+        ctx.fillText("Tap to restart or use Farcade play-again", WIDTH / 2, 365);
+
+        ctx.textAlign = "left";
+      }
+
+      function render() {
+        ctx.clearRect(0, 0, WIDTH, HEIGHT);
+
+        switch (state.mode) {
+          case "loading":
+            ctx.fillStyle = "#be8f72";
+            ctx.fillRect(0, 0, WIDTH, HEIGHT);
+            ctx.fillStyle = "rgba(15, 10, 20, 0.65)";
+            ctx.fillRect(0, 0, WIDTH, HEIGHT);
+            ctx.fillStyle = "#ffe9cf";
+            ctx.font = "bold 16px Trebuchet MS";
+            ctx.textAlign = "center";
+            ctx.fillText("Loading assets...", WIDTH / 2, HEIGHT / 2);
+            ctx.textAlign = "left";
+            break;
+          case "menu":
+            drawMenu();
+            break;
+          case "upgrade":
+            drawUpgrade();
+            break;
+          case "victory":
+          case "gameover":
+            drawEndScreen();
+            break;
+          default:
+            drawPlaying();
+            break;
+        }
+      }
+
+      function mapPointer(event) {
+        const rect = canvas.getBoundingClientRect();
+        const sx = WIDTH / rect.width;
+        const sy = HEIGHT / rect.height;
+        return {
+          x: (event.clientX - rect.left) * sx,
+          y: (event.clientY - rect.top) * sy
+        };
+      }
+
+      function hitRect(point, rect) {
+        return point.x >= rect.x && point.x <= rect.x + rect.w && point.y >= rect.y && point.y <= rect.y + rect.h;
+      }
+
+      function startTouchPointer(id, point) {
+        pointerState.set(id, point);
+
+        if (state.mode === "playing") {
+          const { dashX, dashY, shootX, shootY } = getTouchButtonCenters();
+
+          if (point.x < WIDTH * 0.42 && point.y > HEIGHT * 0.58 && !controls.joystick.active) {
+            controls.joystick.active = true;
+            controls.joystick.id = id;
+            controls.joystick.ox = point.x;
+            controls.joystick.oy = point.y;
+            controls.joystick.x = 0;
+            controls.joystick.y = 0;
+            return;
+          }
+
+          const sdx = point.x - shootX;
+          const sdy = point.y - shootY;
+          if (!controls.shoot && sdx * sdx + sdy * sdy <= TOUCH_SHOOT_RADIUS * TOUCH_SHOOT_RADIUS) {
+            controls.shoot = true;
+            controls.shootPointerId = id;
+            return;
+          }
+
+          const dx = point.x - dashX;
+          const dy = point.y - dashY;
+          if (dx * dx + dy * dy <= TOUCH_DASH_RADIUS * TOUCH_DASH_RADIUS) {
+            controls.dash = true;
+            return;
+          }
+        }
+
+        handleTap(point);
+      }
+
+      function updateTouchPointer(id, point) {
+        pointerState.set(id, point);
+        if (controls.joystick.active && controls.joystick.id === id) {
+          const dx = point.x - controls.joystick.ox;
+          const dy = point.y - controls.joystick.oy;
+          const normalized = normalize(dx, dy);
+          const magnitude = clamp(Math.hypot(dx, dy) / 34, 0, 1);
+          controls.joystick.x = normalized.x * magnitude;
+          controls.joystick.y = normalized.y * magnitude;
+        }
+      }
+
+      function endTouchPointer(id) {
+        pointerState.delete(id);
+        if (controls.joystick.active && controls.joystick.id === id) {
+          controls.joystick.active = false;
+          controls.joystick.id = null;
+          controls.joystick.x = 0;
+          controls.joystick.y = 0;
+        }
+        if (controls.shootPointerId === id) {
+          controls.shoot = false;
+          controls.shootPointerId = null;
+        }
+      }
+
+      function handleTap(point) {
+        if (state.mode === "menu") {
+          if (point.y > 246 && point.y < 302 && point.x > WIDTH / 2 - 104 && point.x < WIDTH / 2 + 104) {
+            playSfx("select", 0.35);
+            triggerHaptic();
+            startRun();
+          }
+          return;
+        }
+
+        if (state.mode === "upgrade") {
+          for (const choice of state.upgradeChoices) {
+            if (choice.hitbox && hitRect(point, choice.hitbox)) {
+              choice.apply();
+              state.score += 140;
+              applyBuildToPlayer();
+              playSfx("reward", 0.44);
+              triggerHaptic();
+              startLevel(state.levelIndex + 1);
+              return;
+            }
+          }
+          return;
+        }
+
+        if (state.mode === "gameover" || state.mode === "victory") {
+          resetGame();
+          startRun();
+        }
+      }
+
+      function handleKeyDown(event) {
+        keyState.add(event.key);
+
+        if (
+          event.key === " " ||
+          event.key.startsWith("Arrow") ||
+          event.key === "w" || event.key === "W" ||
+          event.key === "a" || event.key === "A" ||
+          event.key === "s" || event.key === "S" ||
+          event.key === "d" || event.key === "D" ||
+          event.key === "b" || event.key === "B" ||
+          event.key === "j" || event.key === "J" ||
+          event.key === "k" || event.key === "K" ||
+          event.key === "x" || event.key === "X"
+        ) {
+          event.preventDefault();
+        }
+
+        if ((event.key === "Enter" || event.key === " ") && state.mode === "menu") {
+          playSfx("select", 0.35);
+          startRun();
+        }
+
+        if ((event.key === "Enter" || event.key === " ") && (state.mode === "gameover" || state.mode === "victory")) {
+          resetGame();
+          startRun();
+        }
+
+        if ((event.key === "f" || event.key === "F") && !event.repeat) {
+          toggleFullscreen();
+        }
+      }
+
+      function handleKeyUp(event) {
+        keyState.delete(event.key);
+      }
+
+      function toggleFullscreen() {
+        if (!document.fullscreenElement) {
+          document.documentElement.requestFullscreen().catch(() => {});
+        } else {
+          document.exitFullscreen().catch(() => {});
+        }
+      }
+
+      canvas.addEventListener("pointerdown", (event) => {
+        const point = mapPointer(event);
+        if (event.pointerType === "mouse") {
+          mousePointer.active = true;
+          mousePointer.x = point.x;
+          mousePointer.y = point.y;
+
+          if (state.mode === "playing") {
+            const { dashX, dashY, shootX, shootY } = getTouchButtonCenters();
+            const sdx = point.x - shootX;
+            const sdy = point.y - shootY;
+            if (sdx * sdx + sdy * sdy <= TOUCH_SHOOT_RADIUS * TOUCH_SHOOT_RADIUS) {
+              controls.shoot = true;
+              return;
+            }
+
+            const ddx = point.x - dashX;
+            const ddy = point.y - dashY;
+            if (ddx * ddx + ddy * ddy <= TOUCH_DASH_RADIUS * TOUCH_DASH_RADIUS) {
+              controls.dash = true;
+              return;
+            }
+          }
+
+          handleTap(point);
+        } else {
+          startTouchPointer(event.pointerId, point);
+        }
+      });
+
+      canvas.addEventListener("pointermove", (event) => {
+        const point = mapPointer(event);
+        if (event.pointerType === "mouse") {
+          if (mousePointer.active) {
+            mousePointer.x = point.x;
+            mousePointer.y = point.y;
+          }
+        } else {
+          updateTouchPointer(event.pointerId, point);
+        }
+      });
+
+      canvas.addEventListener("pointerup", (event) => {
+        if (event.pointerType === "mouse") {
+          mousePointer.active = false;
+          controls.shoot = false;
+        } else {
+          endTouchPointer(event.pointerId);
+        }
+      });
+
+      canvas.addEventListener("pointercancel", (event) => {
+        if (event.pointerType !== "mouse") {
+          endTouchPointer(event.pointerId);
+        }
+      });
+
+      window.addEventListener("keydown", handleKeyDown, { passive: false });
+      window.addEventListener("keyup", handleKeyUp, { passive: true });
+      window.addEventListener("blur", () => {
+        keyState.clear();
+        controls.dash = false;
+        controls.shoot = false;
+        controls.shootPointerId = null;
+        controls.joystick.active = false;
+        controls.joystick.id = null;
+        controls.joystick.x = 0;
+        controls.joystick.y = 0;
+      });
+
+      muteBtn.addEventListener("click", () => {
+        setMuted(!state.isMuted);
+      });
+
+      fullscreenBtn.addEventListener("click", () => {
+        toggleFullscreen();
+      });
+
+      let previousTime = performance.now();
+      function frame(now) {
+        const dt = clamp((now - previousTime) / 1000, 0, 0.05);
+        previousTime = now;
+
+        update(dt);
+        render();
+        requestAnimationFrame(frame);
+      }
+
+      window.advanceTime = (ms) => {
+        const step = 1 / 60;
+        const count = Math.max(1, Math.round(ms / (1000 / 60)));
+        for (let i = 0; i < count; i += 1) {
+          update(step);
+        }
+        render();
+      };
+
+      window.render_game_to_text = () => {
+        const p = state.player || { x: 0, y: 0, hp: 0, maxHp: 0, dashCooldown: 0 };
+        const m = state.mission || { type: "none", title: "none", progress: 0, target: 0 };
+        return JSON.stringify({
+          coordinateSystem: "origin top-left; +x right; +y down",
+          mode: state.mode,
+          level: state.currentLevel ? state.currentLevel.id : 0,
+          levelTotal: LEVEL_TOTAL,
+          levelName: state.currentLevel ? state.currentLevel.name : "none",
+          timer: Number(state.timer.toFixed(2)),
+          score: Math.floor(state.score),
+          kills: state.kills,
+          combo: state.combo,
+          muted: state.isMuted,
+          objective: {
+            type: m.type,
+            title: m.title,
+            description: m.description || "",
+            progress: Number((m.progress || 0).toFixed ? (m.progress || 0).toFixed(2) : m.progress || 0),
+            target: Number((m.target || 0).toFixed ? (m.target || 0).toFixed(2) : m.target || 0),
+            statusText: missionProgressText()
+          },
+          player: {
+            x: Number(p.x.toFixed(1)),
+            y: Number(p.y.toFixed(1)),
+            hp: Number(p.hp.toFixed(1)),
+            maxHp: Number(p.maxHp.toFixed(1)),
+            dashCooldown: Number(p.dashCooldown.toFixed(2)),
+            weapon: WEAPONS[p.weaponIndex] ? WEAPONS[p.weaponIndex].name : "none"
+          },
+          enemies: state.enemies.map((e) => ({
+            type: e.type,
+            x: Number(e.x.toFixed(1)),
+            y: Number(e.y.toFixed(1)),
+            hp: Number(e.hp.toFixed(1))
+          })),
+          bullets: {
+            player: state.bullets.length,
+            enemy: state.enemyBullets.length
+          },
+          map: {
+            district: state.map ? state.map.district : "none",
+            obstacleCount: state.map ? state.map.obstacles.length : 0
+          },
+          upgradesOffered: state.mode === "upgrade" ? state.upgradeChoices.map((u) => u.title) : []
+        });
+      };
+
+      loadAssets().then(() => {
+        loadingNode.classList.add("hidden");
+        setTimeout(() => {
+          loadingNode.style.display = "none";
+        }, 220);
+
+        resetGame();
+
+        let attempts = 0;
+        const sdkTimer = setInterval(() => {
+          attempts += 1;
+          if (attachSdkHandlers() || attempts > 40) {
+            clearInterval(sdkTimer);
+          }
+        }, 250);
+
+        requestAnimationFrame(frame);
+      });
+
+      if (window.FarcadeSDK && typeof window.FarcadeSDK.onToggleMute === "function") {
+        window.FarcadeSDK.onToggleMute((data) => {
+          setMuted(Boolean(data && data.isMuted));
+        });
+      }
+    })();
+  </script>
+</body>
+</html>
