@@ -196,19 +196,34 @@
             "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0191.png"
           ],
           roofs: [
-            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0109.png",
-            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0113.png",
-            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0119.png",
-            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0204.png",
-            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0205.png",
+            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0108.png",
+            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0111.png",
+            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0114.png",
+            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0120.png",
+            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0123.png",
             "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0170.png",
-            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0171.png"
+            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0204.png"
+          ],
+          roofAccents: [
+            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0126.png",
+            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0129.png",
+            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0132.png",
+            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0138.png",
+            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0141.png"
           ],
           walls: [
+            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0145.png",
+            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0148.png",
+            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0153.png",
             "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0164.png",
-            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0165.png",
-            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0166.png",
-            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0167.png"
+            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0165.png"
+          ],
+          wallWindows: [
+            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0144.png",
+            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0147.png",
+            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0150.png",
+            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0162.png",
+            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0168.png"
           ],
           covers: [
             "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0229.png",
@@ -401,6 +416,7 @@
       async function loadAssets() {
         const paths = [];
         flattenValues(ASSETS, paths);
+        flattenValues(DISTRICT_THEMES, paths);
 
         const uniquePaths = Array.from(new Set(paths.filter((p) => p.endsWith(".png"))));
         const tasks = uniquePaths.map(async (path) => {
@@ -878,15 +894,25 @@
             "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0091.png"
           ],
           roofs: [
-            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0204.png",
-            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0205.png",
-            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0170.png",
-            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0171.png"
+            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0114.png",
+            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0115.png",
+            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0116.png",
+            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0204.png"
+          ],
+          roofAccents: [
+            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0132.png",
+            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0133.png",
+            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0134.png"
           ],
           walls: [
-            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0166.png",
-            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0167.png",
-            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0165.png"
+            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0148.png",
+            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0149.png",
+            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0166.png"
+          ],
+          wallWindows: [
+            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0147.png",
+            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0150.png",
+            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0168.png"
           ],
           props: [
             "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0076.png",
@@ -902,7 +928,7 @@
           roadEdge: "rgba(22, 12, 4, 0.40)",
           buildingOutline: "rgba(28, 10, 4, 0.92)"
         },
-        // Oasis: lush teal-green garden district — green ground, sandy paths, purple/dark buildings
+        // Oasis: lush teal-green garden district — green ground, sandy paths, teal buildings
         oasis: {
           ground: [
             "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0095.png",
@@ -920,15 +946,25 @@
             "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0156.png"
           ],
           roofs: [
-            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0109.png",
-            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0204.png",
-            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0205.png",
-            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0170.png"
+            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0111.png",
+            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0112.png",
+            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0113.png",
+            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0205.png"
+          ],
+          roofAccents: [
+            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0129.png",
+            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0130.png",
+            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0131.png"
           ],
           walls: [
-            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0164.png",
-            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0165.png",
-            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0166.png"
+            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0151.png",
+            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0152.png",
+            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0153.png"
+          ],
+          wallWindows: [
+            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0151.png",
+            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0144.png",
+            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0162.png"
           ],
           props: [
             "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0080.png",
@@ -944,7 +980,7 @@
           roadEdge: "rgba(6, 20, 5, 0.38)",
           buildingOutline: "rgba(8, 28, 12, 0.92)"
         },
-        // Violet: alien crystal district — purple ground, tan paths, dark/maroon buildings
+        // Violet: alien crystal district — purple ground, tan paths, purple buildings
         violet: {
           ground: [
             "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0090.png",
@@ -962,15 +998,25 @@
             "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0113.png"
           ],
           roofs: [
-            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0204.png",
-            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0205.png",
-            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0170.png",
-            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0171.png"
+            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0108.png",
+            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0109.png",
+            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0110.png",
+            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0170.png"
+          ],
+          roofAccents: [
+            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0126.png",
+            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0127.png",
+            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0128.png"
           ],
           walls: [
-            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0164.png",
-            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0166.png",
-            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0167.png"
+            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0145.png",
+            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0146.png",
+            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0164.png"
+          ],
+          wallWindows: [
+            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0144.png",
+            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0162.png",
+            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0163.png"
           ],
           props: [
             "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0075.png",
@@ -986,7 +1032,7 @@
           roadEdge: "rgba(14, 4, 32, 0.40)",
           buildingOutline: "rgba(18, 6, 40, 0.94)"
         },
-        // Slate: grey-blue urban concrete district — steel-blue ground, warm roads, purple-dark buildings
+        // Slate: grey-blue urban concrete district — steel-blue ground, warm roads, grey buildings
         slate: {
           ground: [
             "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0100.png",
@@ -1004,15 +1050,25 @@
             "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0096.png"
           ],
           roofs: [
-            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0119.png",
-            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0109.png",
-            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0204.png",
-            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0205.png"
+            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0123.png",
+            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0124.png",
+            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0125.png",
+            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0117.png"
+          ],
+          roofAccents: [
+            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0141.png",
+            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0142.png",
+            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0143.png"
           ],
           walls: [
+            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0153.png",
             "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0164.png",
-            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0165.png",
-            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0167.png"
+            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0165.png"
+          ],
+          wallWindows: [
+            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0162.png",
+            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0144.png",
+            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0163.png"
           ],
           props: [
             "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0076.png",
@@ -1046,15 +1102,25 @@
             "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0090.png"
           ],
           roofs: [
-            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0204.png",
-            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0170.png",
-            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0171.png",
-            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0205.png"
+            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0120.png",
+            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0121.png",
+            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0122.png",
+            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0114.png"
+          ],
+          roofAccents: [
+            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0138.png",
+            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0139.png",
+            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0140.png"
           ],
           walls: [
-            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0165.png",
-            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0166.png",
-            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0167.png"
+            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0148.png",
+            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0149.png",
+            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0165.png"
+          ],
+          wallWindows: [
+            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0147.png",
+            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0150.png",
+            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0168.png"
           ],
           props: [
             "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0082.png",
@@ -1320,7 +1386,9 @@
             tw: rect.w,
             th: rect.h,
             roofTile: pickFrom(rng, theme.roofs),
+            roofAccentTile: theme.roofAccents ? pickFrom(rng, theme.roofAccents) : null,
             facadeTile: pickFrom(rng, theme.walls),
+            wallWindowTile: theme.wallWindows ? pickFrom(rng, theme.wallWindows) : null,
             facadeSide: chooseFacadeSide(rect),
             outline: theme.buildingOutline || "rgba(40, 30, 54, 0.72)",
             door: chooseDoor(rect),
@@ -1732,54 +1800,94 @@
           const pw = building.tw * TILE;
           const ph = building.th * TILE;
 
-          sctx.fillStyle = "rgba(17, 13, 26, 0.28)";
-          sctx.fillRect(px + 2, py + 2, pw, ph);
+          // South/east wall depth determines how many rows/cols are walls vs roof
+          const hasSouthWall = building.th >= 3;
+          const hasEastWall = building.tw >= 3;
+          const southWallRows = hasSouthWall ? 1 : 0;
+          const eastWallCols = hasEastWall ? 1 : 0;
+          const roofEndY = building.th - southWallRows;
+          const roofEndX = building.tw - eastWallCols;
 
-          for (let ty = 0; ty < building.th; ty += 1) {
+          // Drop shadow offset to south-east for 3D depth
+          sctx.fillStyle = "rgba(17, 13, 26, 0.32)";
+          sctx.fillRect(px + 3, py + 3, pw, ph);
+
+          // --- Draw roof tiles (interior area, excluding wall rows/cols) ---
+          for (let ty = 0; ty < roofEndY; ty += 1) {
+            for (let tx = 0; tx < roofEndX; tx += 1) {
+              const isEdge = ty === 0 || tx === 0 || ty === roofEndY - 1 || tx === roofEndX - 1;
+              const hash = (building.tx + tx) * 7 + (building.ty + ty) * 13;
+              // Use accent tiles for some interior tiles to add visual variety
+              if (!isEdge && building.roofAccentTile && hash % 5 === 0) {
+                drawSpriteTo(sctx, building.roofAccentTile, px + tx * TILE, py + ty * TILE, TILE, TILE, 1);
+              } else {
+                drawSpriteTo(sctx, building.roofTile, px + tx * TILE, py + ty * TILE, TILE, TILE, 1);
+              }
+            }
+          }
+
+          // --- Roof edge darkening (subtle border effect on roof perimeter) ---
+          if (roofEndX >= 3 && roofEndY >= 3) {
+            sctx.fillStyle = "rgba(0, 0, 0, 0.10)";
+            // Top edge
+            sctx.fillRect(px, py, roofEndX * TILE, 2);
+            // Left edge
+            sctx.fillRect(px, py, 2, roofEndY * TILE);
+            // Bottom of roof (above wall)
+            sctx.fillRect(px, py + (roofEndY - 1) * TILE + TILE - 2, roofEndX * TILE, 2);
+            // Right of roof (left of east wall)
+            sctx.fillRect(px + (roofEndX - 1) * TILE + TILE - 2, py, 2, roofEndY * TILE);
+          }
+
+          // --- South wall (bottom row) - shows building front face ---
+          if (hasSouthWall) {
+            const wallY = py + roofEndY * TILE;
             for (let tx = 0; tx < building.tw; tx += 1) {
-              drawSpriteTo(sctx, building.roofTile, px + tx * TILE, py + ty * TILE, TILE, TILE, 1);
-            }
-          }
-
-          if ((building.tx + building.ty) % 2 === 0 && (building.tw >= 5 || building.th >= 5)) {
-            sctx.fillStyle = "rgba(255, 246, 215, 0.06)";
-            if (building.tw >= building.th) {
-              for (let ty = 2; ty < building.th - 1; ty += 3) {
-                sctx.fillRect(px + TILE, py + ty * TILE, Math.max(0, pw - TILE * 2), 1);
-              }
-            } else {
-              for (let tx = 2; tx < building.tw - 1; tx += 3) {
-                sctx.fillRect(px + tx * TILE, py + TILE, 1, Math.max(0, ph - TILE * 2));
+              const hash = (building.tx + tx) * 11 + building.ty * 3;
+              // Alternate between wall tiles and wall-with-window tiles
+              if (building.wallWindowTile && tx > 0 && tx < building.tw - 1 && hash % 3 === 0) {
+                drawSpriteTo(sctx, building.wallWindowTile, px + tx * TILE, wallY, TILE, TILE, 1);
+              } else {
+                drawSpriteTo(sctx, building.facadeTile, px + tx * TILE, wallY, TILE, TILE, 1);
               }
             }
+            // Darken south wall slightly for depth
+            sctx.fillStyle = "rgba(0, 0, 0, 0.08)";
+            sctx.fillRect(px, wallY, building.tw * TILE, TILE);
           }
 
-          if (building.facadeTile) {
-            const side = building.facadeSide || "south";
-            if (side === "north") {
-              for (let tx = 0; tx < building.tw; tx += 1) {
-                drawSpriteTo(sctx, building.facadeTile, px + tx * TILE, py, TILE, TILE, 0.9);
-              }
-            } else if (side === "south") {
-              for (let tx = 0; tx < building.tw; tx += 1) {
-                drawSpriteTo(sctx, building.facadeTile, px + tx * TILE, py + (building.th - 1) * TILE, TILE, TILE, 0.9);
-              }
-            } else if (side === "west") {
-              for (let ty = 0; ty < building.th; ty += 1) {
-                drawSpriteTo(sctx, building.facadeTile, px, py + ty * TILE, TILE, TILE, 0.86);
-              }
-            } else {
-              for (let ty = 0; ty < building.th; ty += 1) {
-                drawSpriteTo(sctx, building.facadeTile, px + (building.tw - 1) * TILE, py + ty * TILE, TILE, TILE, 0.86);
+          // --- East wall (right column) - shows building side face ---
+          if (hasEastWall) {
+            const wallX = px + roofEndX * TILE;
+            for (let ty = 0; ty < roofEndY; ty += 1) {
+              const hash = building.tx * 3 + (building.ty + ty) * 11;
+              if (building.wallWindowTile && ty > 0 && ty < roofEndY - 1 && hash % 3 === 0) {
+                drawSpriteTo(sctx, building.wallWindowTile, wallX, py + ty * TILE, TILE, TILE, 0.92);
+              } else {
+                drawSpriteTo(sctx, building.facadeTile, wallX, py + ty * TILE, TILE, TILE, 0.92);
               }
             }
+            // Darken east wall more for side-facing depth
+            sctx.fillStyle = "rgba(0, 0, 0, 0.14)";
+            sctx.fillRect(wallX, py, TILE, roofEndY * TILE);
           }
 
+          // --- Corner tile where south and east walls meet ---
+          if (hasSouthWall && hasEastWall) {
+            const cx = px + roofEndX * TILE;
+            const cy = py + roofEndY * TILE;
+            drawSpriteTo(sctx, building.facadeTile, cx, cy, TILE, TILE, 0.88);
+            sctx.fillStyle = "rgba(0, 0, 0, 0.18)";
+            sctx.fillRect(cx, cy, TILE, TILE);
+          }
+
+          // --- Building outline ---
           sctx.strokeStyle = building.outline || "rgba(29, 22, 42, 0.65)";
           sctx.lineWidth = 1;
           sctx.strokeRect(px + 0.5, py + 0.5, pw - 1, ph - 1);
 
-          sctx.strokeStyle = "rgba(252, 240, 212, 0.17)";
+          // --- Highlight on NW edges (light catches top-left) ---
+          sctx.strokeStyle = "rgba(252, 240, 212, 0.20)";
           sctx.beginPath();
           sctx.moveTo(px + 0.5, py + 0.5);
           sctx.lineTo(px + pw - 0.5, py + 0.5);
@@ -1787,14 +1895,33 @@
           sctx.lineTo(px + 0.5, py + ph - 0.5);
           sctx.stroke();
 
-          if (building.tw >= 5 && building.th >= 5 && (building.tx * 13 + building.ty * 11) % 3 === 0) {
-            const _decoPool = map.themeProps || ASSETS.tiles.props;
-            const decoTile = _decoPool[(building.tx * 7 + building.ty * 11) % _decoPool.length];
-            const dx = px + Math.floor(building.tw / 2) * TILE - TILE / 2;
-            const dy = py + Math.floor(building.th / 2) * TILE - TILE / 2;
-            drawSpriteTo(sctx, decoTile, dx, dy, TILE, TILE, 0.42);
+          // --- Separation line between roof and south wall ---
+          if (hasSouthWall) {
+            sctx.strokeStyle = "rgba(0, 0, 0, 0.25)";
+            sctx.beginPath();
+            sctx.moveTo(px, py + roofEndY * TILE + 0.5);
+            sctx.lineTo(px + pw, py + roofEndY * TILE + 0.5);
+            sctx.stroke();
+          }
+          // --- Separation line between roof and east wall ---
+          if (hasEastWall) {
+            sctx.strokeStyle = "rgba(0, 0, 0, 0.20)";
+            sctx.beginPath();
+            sctx.moveTo(px + roofEndX * TILE + 0.5, py);
+            sctx.lineTo(px + roofEndX * TILE + 0.5, py + ph);
+            sctx.stroke();
           }
 
+          // --- Roof decoration on large buildings ---
+          if (roofEndX >= 4 && roofEndY >= 4 && (building.tx * 13 + building.ty * 11) % 3 === 0) {
+            const _decoPool = map.themeProps || ASSETS.tiles.props;
+            const decoTile = _decoPool[(building.tx * 7 + building.ty * 11) % _decoPool.length];
+            const dx = px + Math.floor(roofEndX / 2) * TILE - TILE / 2;
+            const dy = py + Math.floor(roofEndY / 2) * TILE - TILE / 2;
+            drawSpriteTo(sctx, decoTile, dx, dy, TILE, TILE, 0.35);
+          }
+
+          // --- Door ---
           if (building.door) {
             drawSpriteTo(sctx, building.door.tile, building.door.tx * TILE, building.door.ty * TILE, TILE, TILE, 1);
           }
