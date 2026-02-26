@@ -269,6 +269,28 @@
             "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0188.png",
             "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0189.png",
             "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0201.png"
+          ],
+          lampPosts: [
+            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0177.png",
+            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0180.png",
+            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0197.png",
+            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0199.png"
+          ],
+          fences: [
+            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0178.png",
+            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0179.png"
+          ],
+          trees: [
+            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0062.png",
+            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0063.png",
+            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0080.png",
+            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0081.png"
+          ],
+          awnings: [
+            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0184.png",
+            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0185.png",
+            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0186.png",
+            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0187.png"
           ]
         },
         audio: {
@@ -1631,8 +1653,52 @@
           addPropAt(p.tx, p.ty, p.tile);
         }
 
+        // Place lamp posts along road edges at regular intervals
+        for (let y = 2; y < MAP_ROWS - 2; y += 1) {
+          for (let x = 2; x < MAP_COLS - 2; x += 1) {
+            if (!roadMask[y][x]) continue;
+            const isVertical = roadMask[y - 1][x] && roadMask[y + 1][x] && !roadMask[y][x - 1] && !roadMask[y][x + 1];
+            const isHorizontal = roadMask[y][x - 1] && roadMask[y][x + 1] && !roadMask[y - 1][x] && !roadMask[y + 1][x];
+            if (!isVertical && !isHorizontal) continue;
+            if ((x + y * 7 + level.id) % 6 !== 0) continue;
+            const lampTile = pickFrom(rng, ASSETS.tiles.lampPosts);
+            if (isVertical) {
+              if (!roadMask[y][x - 1] && !occupiedMask[y][x - 1] && inBoundsTile(x - 1, y)) {
+                addPropAt(x - 1, y, lampTile);
+              } else if (!roadMask[y][x + 1] && !occupiedMask[y][x + 1] && inBoundsTile(x + 1, y)) {
+                addPropAt(x + 1, y, lampTile);
+              }
+            } else {
+              if (!roadMask[y - 1][x] && !occupiedMask[y - 1][x] && inBoundsTile(x, y - 1)) {
+                addPropAt(x, y - 1, lampTile);
+              } else if (!roadMask[y + 1][x] && !occupiedMask[y + 1][x] && inBoundsTile(x, y + 1)) {
+                addPropAt(x, y + 1, lampTile);
+              }
+            }
+          }
+        }
+
+        // Place trees and bushes in open non-road areas
+        const treeGoal = 5 + Math.floor(level.id / 3);
+        let treesPlaced = 0;
         attempts = 0;
-        const propGoal = (handcrafted ? 6 : 9) + Math.floor(level.id / 4);
+        while (treesPlaced < treeGoal && attempts < 300) {
+          attempts += 1;
+          const tx = 2 + Math.floor(rng() * (MAP_COLS - 4));
+          const ty = 2 + Math.floor(rng() * (MAP_ROWS - 4));
+          if (roadMask[ty][tx] || occupiedMask[ty][tx]) continue;
+          if (propUsed.has(`${tx}:${ty}`)) continue;
+          const nearBuilding = occupiedMask[ty - 1] && occupiedMask[ty - 1][tx] ||
+            occupiedMask[ty + 1] && occupiedMask[ty + 1][tx] ||
+            occupiedMask[ty][tx - 1] || occupiedMask[ty][tx + 1];
+          if (nearBuilding && rng() < 0.4) continue;
+          const treeTile = pickFrom(rng, ASSETS.tiles.trees);
+          if (addPropAt(tx, ty, treeTile)) treesPlaced += 1;
+        }
+
+        // Place regular props (cacti, rocks, barrels)
+        attempts = 0;
+        const propGoal = (handcrafted ? 8 : 12) + Math.floor(level.id / 3);
         while (props.length < propGoal && attempts < 420) {
           attempts += 1;
           const tx = 1 + Math.floor(rng() * (MAP_COLS - 2));
@@ -1640,7 +1706,7 @@
           if (roadMask[ty][tx] || occupiedMask[ty][tx]) continue;
 
           const nearRoad = cellRoad(tx - 1, ty) || cellRoad(tx + 1, ty) || cellRoad(tx, ty - 1) || cellRoad(tx, ty + 1);
-          if (!nearRoad && rng() < (handcrafted ? 0.7 : 0.55)) continue;
+          if (!nearRoad && rng() < (handcrafted ? 0.5 : 0.4)) continue;
 
           addPropAt(tx, ty, null);
         }
@@ -1803,14 +1869,14 @@
           // South/east wall depth determines how many rows/cols are walls vs roof
           const hasSouthWall = building.th >= 3;
           const hasEastWall = building.tw >= 3;
-          const southWallRows = hasSouthWall ? 1 : 0;
-          const eastWallCols = hasEastWall ? 1 : 0;
+          const southWallRows = hasSouthWall ? (building.th >= 5 ? 2 : 1) : 0;
+          const eastWallCols = hasEastWall ? (building.tw >= 5 ? 2 : 1) : 0;
           const roofEndY = building.th - southWallRows;
           const roofEndX = building.tw - eastWallCols;
 
           // Drop shadow offset to south-east for 3D depth
-          sctx.fillStyle = "rgba(17, 13, 26, 0.32)";
-          sctx.fillRect(px + 3, py + 3, pw, ph);
+          sctx.fillStyle = "rgba(10, 5, 18, 0.52)";
+          sctx.fillRect(px + 4, py + 5, pw, ph);
 
           // --- Draw roof tiles (interior area, excluding wall rows/cols) ---
           for (let ty = 0; ty < roofEndY; ty += 1) {
@@ -1839,46 +1905,56 @@
             sctx.fillRect(px + (roofEndX - 1) * TILE + TILE - 2, py, 2, roofEndY * TILE);
           }
 
-          // --- South wall (bottom row) - shows building front face ---
+          // --- South wall (bottom rows) - shows building front face ---
           if (hasSouthWall) {
-            const wallY = py + roofEndY * TILE;
-            for (let tx = 0; tx < building.tw; tx += 1) {
-              const hash = (building.tx + tx) * 11 + building.ty * 3;
-              // Alternate between wall tiles and wall-with-window tiles
-              if (building.wallWindowTile && tx > 0 && tx < building.tw - 1 && hash % 3 === 0) {
-                drawSpriteTo(sctx, building.wallWindowTile, px + tx * TILE, wallY, TILE, TILE, 1);
-              } else {
-                drawSpriteTo(sctx, building.facadeTile, px + tx * TILE, wallY, TILE, TILE, 1);
+            for (let row = 0; row < southWallRows; row += 1) {
+              const wallY = py + (roofEndY + row) * TILE;
+              const isBottom = row === southWallRows - 1;
+              for (let tx = 0; tx < building.tw; tx += 1) {
+                const hash = (building.tx + tx) * 11 + (building.ty + row) * 3;
+                // Top wall row: more windows; bottom row: mostly solid walls
+                if (building.wallWindowTile && tx > 0 && tx < building.tw - 1 && ((row === 0 && hash % 3 === 0) || (!isBottom && hash % 4 === 0))) {
+                  drawSpriteTo(sctx, building.wallWindowTile, px + tx * TILE, wallY, TILE, TILE, 1);
+                } else {
+                  drawSpriteTo(sctx, building.facadeTile, px + tx * TILE, wallY, TILE, TILE, 1);
+                }
               }
+              // Darken deeper wall rows more for depth
+              const darkening = 0.06 + row * 0.04;
+              sctx.fillStyle = `rgba(0, 0, 0, ${darkening})`;
+              sctx.fillRect(px, wallY, building.tw * TILE, TILE);
             }
-            // Darken south wall slightly for depth
-            sctx.fillStyle = "rgba(0, 0, 0, 0.08)";
-            sctx.fillRect(px, wallY, building.tw * TILE, TILE);
           }
 
-          // --- East wall (right column) - shows building side face ---
+          // --- East wall (right columns) - shows building side face ---
           if (hasEastWall) {
-            const wallX = px + roofEndX * TILE;
-            for (let ty = 0; ty < roofEndY; ty += 1) {
-              const hash = building.tx * 3 + (building.ty + ty) * 11;
-              if (building.wallWindowTile && ty > 0 && ty < roofEndY - 1 && hash % 3 === 0) {
-                drawSpriteTo(sctx, building.wallWindowTile, wallX, py + ty * TILE, TILE, TILE, 0.92);
-              } else {
-                drawSpriteTo(sctx, building.facadeTile, wallX, py + ty * TILE, TILE, TILE, 0.92);
+            for (let col = 0; col < eastWallCols; col += 1) {
+              const wallX = px + (roofEndX + col) * TILE;
+              for (let ty = 0; ty < roofEndY; ty += 1) {
+                const hash = (building.tx + col) * 3 + (building.ty + ty) * 11;
+                if (building.wallWindowTile && ty > 0 && ty < roofEndY - 1 && col === 0 && hash % 4 === 0) {
+                  drawSpriteTo(sctx, building.wallWindowTile, wallX, py + ty * TILE, TILE, TILE, 0.88 - col * 0.06);
+                } else {
+                  drawSpriteTo(sctx, building.facadeTile, wallX, py + ty * TILE, TILE, TILE, 0.88 - col * 0.06);
+                }
               }
+              const darkening = 0.12 + col * 0.06;
+              sctx.fillStyle = `rgba(0, 0, 0, ${darkening})`;
+              sctx.fillRect(wallX, py, TILE, roofEndY * TILE);
             }
-            // Darken east wall more for side-facing depth
-            sctx.fillStyle = "rgba(0, 0, 0, 0.14)";
-            sctx.fillRect(wallX, py, TILE, roofEndY * TILE);
           }
 
-          // --- Corner tile where south and east walls meet ---
+          // --- Corner tiles where south and east walls meet ---
           if (hasSouthWall && hasEastWall) {
-            const cx = px + roofEndX * TILE;
-            const cy = py + roofEndY * TILE;
-            drawSpriteTo(sctx, building.facadeTile, cx, cy, TILE, TILE, 0.88);
-            sctx.fillStyle = "rgba(0, 0, 0, 0.18)";
-            sctx.fillRect(cx, cy, TILE, TILE);
+            for (let row = 0; row < southWallRows; row += 1) {
+              for (let col = 0; col < eastWallCols; col += 1) {
+                const cx = px + (roofEndX + col) * TILE;
+                const cy = py + (roofEndY + row) * TILE;
+                drawSpriteTo(sctx, building.facadeTile, cx, cy, TILE, TILE, 0.82);
+                sctx.fillStyle = `rgba(0, 0, 0, ${0.16 + row * 0.04 + col * 0.04})`;
+                sctx.fillRect(cx, cy, TILE, TILE);
+              }
+            }
           }
 
           // --- Building outline ---
@@ -1902,6 +1978,14 @@
             sctx.moveTo(px, py + roofEndY * TILE + 0.5);
             sctx.lineTo(px + pw, py + roofEndY * TILE + 0.5);
             sctx.stroke();
+            // Additional lines between wall rows
+            for (let row = 1; row < southWallRows; row += 1) {
+              sctx.strokeStyle = "rgba(0, 0, 0, 0.15)";
+              sctx.beginPath();
+              sctx.moveTo(px, py + (roofEndY + row) * TILE + 0.5);
+              sctx.lineTo(px + pw, py + (roofEndY + row) * TILE + 0.5);
+              sctx.stroke();
+            }
           }
           // --- Separation line between roof and east wall ---
           if (hasEastWall) {
@@ -1910,6 +1994,13 @@
             sctx.moveTo(px + roofEndX * TILE + 0.5, py);
             sctx.lineTo(px + roofEndX * TILE + 0.5, py + ph);
             sctx.stroke();
+            for (let col = 1; col < eastWallCols; col += 1) {
+              sctx.strokeStyle = "rgba(0, 0, 0, 0.12)";
+              sctx.beginPath();
+              sctx.moveTo(px + (roofEndX + col) * TILE + 0.5, py);
+              sctx.lineTo(px + (roofEndX + col) * TILE + 0.5, py + ph);
+              sctx.stroke();
+            }
           }
 
           // --- Roof decoration on large buildings ---
@@ -1921,9 +2012,15 @@
             drawSpriteTo(sctx, decoTile, dx, dy, TILE, TILE, 0.35);
           }
 
-          // --- Door ---
+          // --- Door with awning ---
           if (building.door) {
             drawSpriteTo(sctx, building.door.tile, building.door.tx * TILE, building.door.ty * TILE, TILE, TILE, 1);
+            // Add awning above door if there's space
+            const awningY = building.door.ty - 1;
+            if (awningY >= building.ty && awningY < building.ty + building.th) {
+              const awningTile = ASSETS.tiles.awnings[(building.tx * 3 + building.ty * 7) % ASSETS.tiles.awnings.length];
+              drawSpriteTo(sctx, awningTile, building.door.tx * TILE, awningY * TILE, TILE, TILE, 0.85);
+            }
           }
         }
 
@@ -2163,7 +2260,10 @@
             pathTimer: 0,
             path: [],
             patrolTimer: rand(0.3, 1.1),
-            patrolDir: normalize(rand(-1, 1), rand(-1, 1))
+            patrolDir: normalize(rand(-1, 1), rand(-1, 1)),
+            facingX: 0,
+            facingY: 1,
+            weaponSpriteIdx: 1
           };
         } else if (type === "brute") {
           enemy = {
@@ -2182,7 +2282,10 @@
             pathTimer: 0,
             path: [],
             patrolTimer: rand(0.3, 1.1),
-            patrolDir: normalize(rand(-1, 1), rand(-1, 1))
+            patrolDir: normalize(rand(-1, 1), rand(-1, 1)),
+            facingX: 0,
+            facingY: 1,
+            weaponSpriteIdx: 2
           };
         } else {
           enemy = {
@@ -2201,7 +2304,10 @@
             pathTimer: 0,
             path: [],
             patrolTimer: rand(0.3, 1.1),
-            patrolDir: normalize(rand(-1, 1), rand(-1, 1))
+            patrolDir: normalize(rand(-1, 1), rand(-1, 1)),
+            facingX: 0,
+            facingY: 1,
+            weaponSpriteIdx: 0
           };
         }
 
@@ -2809,12 +2915,17 @@
             }
 
             if (enemy.patrolDir && (Math.abs(enemy.patrolDir.x) > 0.01 || Math.abs(enemy.patrolDir.y) > 0.01)) {
+              enemy.facingX = enemy.patrolDir.x;
+              enemy.facingY = enemy.patrolDir.y;
               const patrolSpeed = enemySpeed * 0.22;
               resolveMoveStepped(enemy, enemy.patrolDir.x * patrolSpeed * dt, enemy.patrolDir.y * patrolSpeed * dt, enemy.radius);
             }
 
             continue;
           }
+
+          enemy.facingX = toPlayer.x;
+          enemy.facingY = toPlayer.y;
 
           if (enemy.type === "raider") {
             followTargetPath(enemy, p.x, p.y, enemySpeed, 0.32);
@@ -3302,6 +3413,20 @@
         }
       }
 
+      function drawWeaponAt(weaponPath, cx, cy, dirX, dirY, size) {
+        const img = getImage(weaponPath);
+        if (!img) return;
+        const angle = Math.atan2(dirY, dirX);
+        ctx.save();
+        ctx.translate(cx, cy);
+        ctx.rotate(angle);
+        if (Math.abs(angle) > Math.PI / 2) {
+          ctx.scale(1, -1);
+        }
+        ctx.drawImage(img, 2, -size / 2, size, size);
+        ctx.restore();
+      }
+
       function drawEntities() {
         for (const b of state.bullets) {
           ctx.fillStyle = b.color;
@@ -3321,6 +3446,12 @@
           const sprite = ASSETS.enemy[enemy.spriteIndex % ASSETS.enemy.length];
           drawSprite(sprite, enemy.x - 12, enemy.y - 12, 24, 24, 1);
 
+          const ewIdx = enemy.weaponSpriteIdx != null ? enemy.weaponSpriteIdx : 0;
+          const ewPath = ASSETS.weapon[ewIdx % ASSETS.weapon.length];
+          const efx = enemy.facingX || 0;
+          const efy = enemy.facingY || 1;
+          drawWeaponAt(ewPath, enemy.x, enemy.y, efx, efy, 16);
+
           if (enemy.hitFlash > 0) {
             ctx.fillStyle = `rgba(255,255,255,${enemy.hitFlash * 5})`;
             ctx.beginPath();
@@ -3339,6 +3470,12 @@
         ctx.save();
         if (state.lastDamageAt > 0) ctx.globalAlpha = 0.58;
         drawSprite(ASSETS.player[state.levelIndex % ASSETS.player.length], p.x - 12, p.y - 12, 24, 24, 1);
+
+        const weapon = WEAPONS[p.weaponIndex];
+        const wPath = ASSETS.weapon[weapon.sprite];
+        const aimX = state.lastAimDir.x;
+        const aimY = state.lastAimDir.y;
+        drawWeaponAt(wPath, p.x, p.y, aimX, aimY, 18);
         ctx.restore();
 
         if (p.dashTimer > 0) {
@@ -3519,17 +3656,56 @@
         ctx.fillStyle = "rgba(14, 10, 20, 0.6)";
         ctx.fillRect(0, 0, WIDTH, HEIGHT);
 
+        // Draw decorative ground tiles as background
+        const bgTiles = [
+          ASSETS.tiles.biomes.sand[0],
+          ASSETS.tiles.biomes.sand[1],
+          ASSETS.tiles.biomes.rust[0]
+        ];
+        for (let ty = 0; ty < Math.ceil(HEIGHT / TILE); ty += 1) {
+          for (let tx = 0; tx < Math.ceil(WIDTH / TILE); tx += 1) {
+            const tileIdx = (tx * 7 + ty * 13) % bgTiles.length;
+            drawSprite(bgTiles[tileIdx], tx * TILE, ty * TILE, TILE, TILE, 0.15);
+          }
+        }
+
+        // Character showcase - player and enemy with weapons
+        const showcaseY = 76;
+        // Player character
+        drawSprite(ASSETS.player[0], WIDTH / 2 - 56, showcaseY, 40, 40, 1);
+        const pWeapon = ASSETS.weapon[0];
+        const pImg = getImage(pWeapon);
+        if (pImg) {
+          ctx.save();
+          ctx.translate(WIDTH / 2 - 36, showcaseY + 20);
+          ctx.rotate(0.3);
+          ctx.drawImage(pImg, 4, -10, 24, 24);
+          ctx.restore();
+        }
+        // Enemy character
+        drawSprite(ASSETS.enemy[0], WIDTH / 2 + 18, showcaseY, 40, 40, 1);
+        const eWeapon = ASSETS.weapon[1];
+        const eImg = getImage(eWeapon);
+        if (eImg) {
+          ctx.save();
+          ctx.translate(WIDTH / 2 + 38, showcaseY + 20);
+          ctx.rotate(Math.PI - 0.3);
+          ctx.scale(1, -1);
+          ctx.drawImage(eImg, 4, -10, 24, 24);
+          ctx.restore();
+        }
+
         ctx.fillStyle = "#ffe8c9";
         ctx.font = "bold 34px Trebuchet MS";
         ctx.textAlign = "center";
-        ctx.fillText("BOUNTY", WIDTH / 2, 142);
-        ctx.fillText("CIRCUIT", WIDTH / 2, 176);
+        ctx.fillText("BOUNTY", WIDTH / 2, 160);
+        ctx.fillText("CIRCUIT", WIDTH / 2, 194);
 
         ctx.font = "12px Trebuchet MS";
         ctx.fillStyle = "#d7ccdf";
-        ctx.fillText("20-mission solo run", WIDTH / 2, 208);
+        ctx.fillText("20-mission solo run", WIDTH / 2, 224);
 
-        const button = { x: WIDTH / 2 - 104, y: 246, w: 208, h: 56 };
+        const button = { x: WIDTH / 2 - 104, y: 256, w: 208, h: 56 };
         ctx.fillStyle = "#3a2f47";
         ctx.fillRect(button.x, button.y, button.w, button.h);
         ctx.strokeStyle = "#f79f79";
@@ -3538,18 +3714,33 @@
 
         ctx.fillStyle = "#ffe8cf";
         ctx.font = "bold 20px Trebuchet MS";
-        ctx.fillText("START RUN", WIDTH / 2, 282);
+        ctx.fillText("START RUN", WIDTH / 2, 292);
+
+        // Weapon showcase row
+        const wpnY = 330;
+        ctx.fillStyle = "#d7ccdf";
+        ctx.font = "10px Trebuchet MS";
+        ctx.fillText("Arsenal", WIDTH / 2, wpnY - 8);
+        for (let i = 0; i < ASSETS.weapon.length; i += 1) {
+          const wx = WIDTH / 2 - (ASSETS.weapon.length * 26) / 2 + i * 26 + 5;
+          drawSprite(ASSETS.weapon[i], wx, wpnY, 20, 20, 0.9);
+        }
 
         ctx.font = "11px Trebuchet MS";
         ctx.fillStyle = "#d7ccdf";
-        ctx.fillText("Move: left joystick / WASD", WIDTH / 2, 344);
-        ctx.fillText("Fire: upper-right button / J", WIDTH / 2, 362);
-        ctx.fillText("Dash: lower-right button / Space", WIDTH / 2, 380);
-        ctx.fillText("Mission briefing appears at each level start", WIDTH / 2, 398);
+        ctx.fillText("Move: left joystick / WASD", WIDTH / 2, 374);
+        ctx.fillText("Fire: upper-right button / J", WIDTH / 2, 392);
+        ctx.fillText("Dash: lower-right button / Space", WIDTH / 2, 410);
+
+        // Decorative props at bottom of screen
+        drawSprite(ASSETS.tiles.props[0], 40, HEIGHT - 60, 24, 24, 0.6);
+        drawSprite(ASSETS.tiles.props[2], WIDTH - 60, HEIGHT - 58, 24, 24, 0.6);
+        drawSprite(ASSETS.tiles.trees[2], 80, HEIGHT - 56, 24, 24, 0.5);
+        drawSprite(ASSETS.tiles.trees[3], WIDTH - 100, HEIGHT - 54, 24, 24, 0.5);
 
         ctx.font = "10px Trebuchet MS";
         ctx.fillStyle = "#ad9ab9";
-        ctx.fillText("Press F for fullscreen", WIDTH / 2, 430);
+        ctx.fillText("Press F for fullscreen", WIDTH / 2, 448);
         ctx.textAlign = "left";
       }
 
@@ -3726,7 +3917,7 @@
 
       function handleTap(point) {
         if (state.mode === "menu") {
-          if (point.y > 246 && point.y < 302 && point.x > WIDTH / 2 - 104 && point.x < WIDTH / 2 + 104) {
+          if (point.y > 256 && point.y < 312 && point.x > WIDTH / 2 - 104 && point.x < WIDTH / 2 + 104) {
             playSfx("select", 0.35);
             triggerHaptic();
             startRun();
