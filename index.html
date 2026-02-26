@@ -122,10 +122,10 @@
       const TOUCH_SHOOT_RADIUS = 30;
 
       const TILE = 16;
-      const MAP_COLS = 22;
-      const MAP_ROWS = 30;
-      const MAP_LEFT = Math.floor((WIDTH - MAP_COLS * TILE) / 2);
-      const MAP_TOP = HUD_HEIGHT;
+      const MAP_COLS = 44;
+      const MAP_ROWS = 56;
+      const MAP_LEFT = 0;
+      const MAP_TOP = 0;
 
       const canvas = document.getElementById("game");
       const ctx = canvas.getContext("2d");
@@ -374,7 +374,11 @@
         build: null,
         player: null,
         lastAimDir: { x: 1, y: 0 },
-        levelBriefTimer: 0
+        levelBriefTimer: 0,
+        camera: { x: 0, y: 0 },
+        selectedCharacter: 0,
+        coins: 0,
+        briefingReady: false
       };
 
       function rand(min, max) {
@@ -546,8 +550,8 @@
         const maxHp = 100 + state.build.maxHpBonus;
         const hp = carryHp == null ? maxHp : clamp(carryHp, 1, maxHp);
         return {
-          x: WIDTH * 0.5,
-          y: HEIGHT - 84,
+          x: MAP_LEFT + MAP_COLS * TILE / 2,
+          y: MAP_TOP + MAP_ROWS * TILE - TILE * 5,
           radius: 12,
           hp,
           maxHp,
@@ -631,6 +635,22 @@
           plazas: [{ x: 4, y: 12, w: 4, h: 4 }]
         }
       ];
+
+      function scaleLayout(layout, sx, sy) {
+        return {
+          avenues: layout.avenues.map(a => Math.round(a * sx)),
+          streets: layout.streets.map(s => Math.round(s * sy)),
+          connectors: layout.connectors.map(c => ({ x: Math.round(c.x * sx), y: Math.round(c.y * sy), w: Math.max(2, Math.round(c.w * sx)), h: Math.max(2, Math.round(c.h * sy)) })),
+          plazas: layout.plazas.map(p => ({ x: Math.round(p.x * sx), y: Math.round(p.y * sy), w: Math.max(3, Math.round(p.w * sx)), h: Math.max(3, Math.round(p.h * sy)) })),
+          patches: (layout.patches || []).map(p => ({ x: Math.round(p.x * sx), y: Math.round(p.y * sy), w: Math.max(2, Math.round(p.w * sx)), h: Math.max(2, Math.round(p.h * sy)) })),
+          props: (layout.props || []).map(p => ({ tx: Math.round(p.tx * sx), ty: Math.round(p.ty * sy), tile: p.tile }))
+        };
+      }
+      function scaleFootprints(footprints, sx, sy) {
+        return footprints.map(f => ({ x: Math.round(f.x * sx), y: Math.round(f.y * sy), w: Math.max(3, Math.round(f.w * sx)), h: Math.max(3, Math.round(f.h * sy)) }));
+      }
+      const LAYOUT_SCALE_X = 44 / 22;
+      const LAYOUT_SCALE_Y = 56 / 30;
 
       const HANDCRAFTED_LEVEL_LAYOUTS = [
         {
@@ -1184,10 +1204,12 @@
       function generateTownMap(level) {
         const rng = makeRng(level.seed);
         const theme = DISTRICT_THEMES[level.district] || DISTRICT_THEMES.rust;
-        const handcrafted = HANDCRAFTED_LEVEL_LAYOUTS[level.id - 1] || null;
-        const layoutBase = handcrafted || TOWN_LAYOUTS[level.style % TOWN_LAYOUTS.length];
-        const shiftX = handcrafted ? 0 : (level.id + level.style) % 2;
-        const shiftY = handcrafted ? 0 : Math.floor(level.id / 3) % 2;
+        const rawHandcrafted = HANDCRAFTED_LEVEL_LAYOUTS[level.id - 1] || null;
+        const rawLayoutBase = rawHandcrafted || TOWN_LAYOUTS[level.style % TOWN_LAYOUTS.length];
+        const handcrafted = rawHandcrafted ? scaleLayout(rawHandcrafted, LAYOUT_SCALE_X, LAYOUT_SCALE_Y) : null;
+        const layoutBase = scaleLayout(rawLayoutBase, LAYOUT_SCALE_X, LAYOUT_SCALE_Y);
+        const shiftX = handcrafted ? 0 : (level.id + level.style) % 3;
+        const shiftY = handcrafted ? 0 : Math.floor(level.id / 3) % 3;
 
         const clampRect = (rect) => {
           const x = clamp(rect.x + shiftX, 1, MAP_COLS - 2);
@@ -1210,7 +1232,7 @@
           patches: (layoutBase.patches || []).map(clampRect),
           buildings: ((layoutBase.buildings && layoutBase.buildings.length > 0)
             ? layoutBase.buildings
-            : (handcrafted ? (HANDCRAFTED_BUILDING_FOOTPRINTS[level.id - 1] || []) : [])
+            : (handcrafted ? scaleFootprints(HANDCRAFTED_BUILDING_FOOTPRINTS[level.id - 1] || [], LAYOUT_SCALE_X, LAYOUT_SCALE_Y) : [])
           ).map(clampRect),
           covers: (layoutBase.covers || []).map(clampRect),
           props: (layoutBase.props || []).map((p) => ({
@@ -1400,7 +1422,31 @@
 
           occupiedRects.push(rect);
           markOccupied(rect);
-          obstacles.push(tileToWorldRect(rect.x, rect.y, rect.w, rect.h));
+
+          const door = chooseDoor(rect);
+
+          // Split obstacle around door so door tile is walkable
+          if (door) {
+            const dx = door.tx;
+            const dy = door.ty;
+            // Unmark the door tile from occupied so pathfinding can use it
+            if (inBoundsTile(dx, dy)) occupiedMask[dy][dx] = false;
+
+            // Add building as individual row/column obstacles, skipping door tile
+            for (let y = rect.y; y < rect.y + rect.h; y += 1) {
+              let runStart = rect.x;
+              for (let x = rect.x; x <= rect.x + rect.w; x += 1) {
+                if (x === dx && y === dy) {
+                  if (x > runStart) obstacles.push(tileToWorldRect(runStart, y, x - runStart, 1));
+                  runStart = x + 1;
+                }
+              }
+              const runEnd = rect.x + rect.w;
+              if (runEnd > runStart) obstacles.push(tileToWorldRect(runStart, y, runEnd - runStart, 1));
+            }
+          } else {
+            obstacles.push(tileToWorldRect(rect.x, rect.y, rect.w, rect.h));
+          }
 
           buildings.push({
             tx: rect.x,
@@ -1413,7 +1459,7 @@
             wallWindowTile: theme.wallWindows ? pickFrom(rng, theme.wallWindows) : null,
             facadeSide: chooseFacadeSide(rect),
             outline: theme.buildingOutline || "rgba(40, 30, 54, 0.72)",
-            door: chooseDoor(rect),
+            door,
             styleTag
           });
           return true;
@@ -2453,8 +2499,8 @@
         state.floatingTexts = [];
 
         const p = state.player;
-        p.x = WIDTH * 0.5;
-        p.y = HEIGHT - 82;
+        p.x = MAP_LEFT + MAP_COLS * TILE / 2;
+        p.y = MAP_TOP + MAP_ROWS * TILE - TILE * 5;
         p.fireCooldown = 0;
         p.dashCooldown = 0;
         p.dashTimer = 0;
@@ -2471,12 +2517,15 @@
         }
 
         state.timer = state.currentLevel.timer;
-        state.mode = "playing";
         state.combo = 0;
         state.comboTimer = 0;
-        state.levelBriefTimer = 3.4;
 
         setupMission(state.currentLevel);
+
+        // Show briefing modal before starting
+        state.mode = "briefing";
+        state.briefingReady = false;
+        state.levelBriefTimer = 0;
 
         state.build.maxUnlockedTier = Math.max(state.build.maxUnlockedTier, Math.min(WEAPONS.length, 1 + Math.floor(state.currentLevel.id / 4)));
         state.build.weaponTier = clamp(state.build.weaponTier, 0, state.build.maxUnlockedTier - 1);
@@ -2511,6 +2560,9 @@
         state.player = makePlayer();
         state.lastAimDir = { x: 1, y: 0 };
         state.levelBriefTimer = 0;
+        state.camera = { x: 0, y: 0 };
+        state.coins = 0;
+        state.briefingReady = false;
         controls.shoot = false;
         controls.shootPointerId = null;
         controls.joystick.active = false;
@@ -2621,6 +2673,25 @@
 
         p.fireCooldown = weapon.cooldown / state.build.fireRateMult;
         playSfx("shoot", 0.24);
+      }
+
+      function hasLineOfSight(ax, ay, bx, by) {
+        if (!state.map) return true;
+        const dx = bx - ax;
+        const dy = by - ay;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        const steps = Math.ceil(dist / 8);
+        for (let i = 1; i <= steps; i += 1) {
+          const t = i / steps;
+          const px = ax + dx * t;
+          const py = ay + dy * t;
+          for (const rect of state.map.obstacles) {
+            if (px >= rect.x && px <= rect.x + rect.w && py >= rect.y && py <= rect.y + rect.h) {
+              return false;
+            }
+          }
+        }
+        return true;
       }
 
       function fireEnemyBullet(enemy, dirX, dirY) {
@@ -2736,7 +2807,7 @@
           b.y += b.vy * dt;
           b.ttl -= dt;
 
-          if (b.ttl <= 0 || b.x < MAP_LEFT - 6 || b.x > MAP_LEFT + MAP_COLS * TILE + 6 || b.y < MAP_TOP - 6 || b.y > MAP_TOP + MAP_ROWS * TILE + 6) {
+          if (b.ttl <= 0 || b.x < MAP_LEFT - 16 || b.x > MAP_LEFT + MAP_COLS * TILE + 16 || b.y < MAP_TOP - 16 || b.y > MAP_TOP + MAP_ROWS * TILE + 16) {
             state.bullets.splice(i, 1);
             continue;
           }
@@ -2823,7 +2894,7 @@
           b.y += b.vy * dt;
           b.ttl -= dt;
 
-          if (b.ttl <= 0 || b.x < MAP_LEFT - 10 || b.x > MAP_LEFT + MAP_COLS * TILE + 10 || b.y < MAP_TOP - 10 || b.y > MAP_TOP + MAP_ROWS * TILE + 10) {
+          if (b.ttl <= 0 || b.x < MAP_LEFT - 16 || b.x > MAP_LEFT + MAP_COLS * TILE + 16 || b.y < MAP_TOP - 16 || b.y > MAP_TOP + MAP_ROWS * TILE + 16) {
             state.enemyBullets.splice(i, 1);
             continue;
           }
@@ -2938,7 +3009,7 @@
 
             enemy.fireCooldown -= dt;
             const shootRange = state.levelIndex < 4 ? 175 : 220;
-            if (enemy.fireCooldown <= 0 && distance < shootRange) {
+            if (enemy.fireCooldown <= 0 && distance < shootRange && hasLineOfSight(enemy.x, enemy.y, p.x, p.y)) {
               enemy.fireCooldown = rand(1.15, 1.85);
               fireEnemyBullet(enemy, toPlayer.x, toPlayer.y);
             }
@@ -2949,7 +3020,7 @@
 
             enemy.fireCooldown -= dt;
             const shootRange = state.levelIndex < 4 ? 132 : 172;
-            if (enemy.fireCooldown <= 0 && distance < shootRange) {
+            if (enemy.fireCooldown <= 0 && distance < shootRange && hasLineOfSight(enemy.x, enemy.y, p.x, p.y)) {
               enemy.fireCooldown = rand(1.6, 2.35);
               fireEnemyBullet(enemy, toPlayer.x, toPlayer.y);
             }
@@ -3336,8 +3407,29 @@
         }
       }
 
+      function updateCamera() {
+        const p = state.player;
+        if (!p) return;
+        const viewW = WIDTH;
+        const viewH = HEIGHT - HUD_HEIGHT;
+        const mapPxW = MAP_COLS * TILE;
+        const mapPxH = MAP_ROWS * TILE;
+        const halfW = viewW / 2;
+        const halfH = viewH / 2;
+        let tx = p.x;
+        let ty = p.y;
+        tx = clamp(tx, MAP_LEFT + halfW, MAP_LEFT + mapPxW - halfW);
+        ty = clamp(ty, MAP_TOP + halfH, MAP_TOP + mapPxH - halfH);
+        // Smooth follow
+        state.camera.x += (tx - state.camera.x) * 0.12;
+        state.camera.y += (ty - state.camera.y) * 0.12;
+      }
+
       function update(dt) {
-        if (state.mode === "playing") updatePlaying(dt);
+        if (state.mode === "playing") {
+          updatePlaying(dt);
+          updateCamera();
+        }
       }
 
       function drawMap() {
@@ -3469,7 +3561,7 @@
         const p = state.player;
         ctx.save();
         if (state.lastDamageAt > 0) ctx.globalAlpha = 0.58;
-        drawSprite(ASSETS.player[state.levelIndex % ASSETS.player.length], p.x - 12, p.y - 12, 24, 24, 1);
+        drawSprite(ASSETS.player[state.selectedCharacter % ASSETS.player.length], p.x - 12, p.y - 12, 24, 24, 1);
 
         const weapon = WEAPONS[p.weaponIndex];
         const wPath = ASSETS.weapon[weapon.sprite];
@@ -3576,46 +3668,24 @@
         ctx.textAlign = "left";
       }
 
-      function drawMissionBrief() {
-        if (state.mode !== "playing" || state.levelBriefTimer <= 0 || !state.currentLevel || !state.mission) return;
-
-        const fadeIn = clamp((3.4 - state.levelBriefTimer) / 0.25, 0, 1);
-        const fadeOut = clamp(state.levelBriefTimer / 0.45, 0, 1);
-        const alpha = Math.min(fadeIn, fadeOut);
-        if (alpha <= 0) return;
-
-        const cardW = WIDTH - 44;
-        const cardH = 74;
-        const cardX = 22;
-        const cardY = HUD_HEIGHT + 14;
+      function drawPlaying() {
+        const halfW = WIDTH / 2;
+        const halfH = (HEIGHT - HUD_HEIGHT) / 2;
 
         ctx.save();
-        ctx.globalAlpha = alpha;
-        ctx.fillStyle = "rgba(16, 12, 24, 0.82)";
-        ctx.fillRect(cardX, cardY, cardW, cardH);
-        ctx.strokeStyle = "rgba(247, 159, 121, 0.9)";
-        ctx.lineWidth = 2;
-        ctx.strokeRect(cardX + 1, cardY + 1, cardW - 2, cardH - 2);
+        ctx.beginPath();
+        ctx.rect(0, HUD_HEIGHT, WIDTH, HEIGHT - HUD_HEIGHT);
+        ctx.clip();
+        ctx.translate(halfW - state.camera.x, HUD_HEIGHT + halfH - state.camera.y);
 
-        ctx.fillStyle = "#ffe8cf";
-        ctx.font = "bold 12px Trebuchet MS";
-        ctx.textAlign = "left";
-        ctx.fillText(`Mission ${state.currentLevel.id}: ${state.currentLevel.name}`, cardX + 12, cardY + 20);
-
-        ctx.fillStyle = "#d7ccdf";
-        ctx.font = "11px Trebuchet MS";
-        ctx.fillText(`Objective: ${state.mission.description}`, cardX + 12, cardY + 40);
-        ctx.fillText(`Goal: ${missionProgressText()}`, cardX + 12, cardY + 57);
-
-        ctx.restore();
-      }
-
-      function drawPlaying() {
         drawMap();
         drawMissionObjects();
         drawEntities();
+
+        ctx.restore();
+
         drawHud();
-        drawMissionBrief();
+        drawMinimap();
         drawTouchUi();
       }
 
@@ -3648,6 +3718,268 @@
         ctx.fillStyle = "#d7ccdf";
         ctx.font = "11px Trebuchet MS";
         wrapText(desc, x + 12, y + 44, w - 24, 14);
+      }
+
+      function drawMinimap() {
+        if (!state.map || state.mode !== "playing") return;
+        const mmW = 64;
+        const mmH = Math.round(mmW * MAP_ROWS / MAP_COLS);
+        const mmX = WIDTH - mmW - 6;
+        const mmY = HUD_HEIGHT + 6;
+        ctx.fillStyle = "rgba(14, 10, 20, 0.7)";
+        ctx.fillRect(mmX - 1, mmY - 1, mmW + 2, mmH + 2);
+        ctx.strokeStyle = "rgba(255,255,255,0.25)";
+        ctx.lineWidth = 1;
+        ctx.strokeRect(mmX - 1, mmY - 1, mmW + 2, mmH + 2);
+
+        const sx = mmW / (MAP_COLS * TILE);
+        const sy = mmH / (MAP_ROWS * TILE);
+
+        // Draw obstacles as dark rects
+        ctx.fillStyle = "rgba(90, 70, 110, 0.6)";
+        for (const obs of state.map.obstacles) {
+          const ox = mmX + (obs.x - MAP_LEFT) * sx;
+          const oy = mmY + (obs.y - MAP_TOP) * sy;
+          ctx.fillRect(ox, oy, Math.max(1, obs.w * sx), Math.max(1, obs.h * sy));
+        }
+
+        // Player dot
+        const p = state.player;
+        ctx.fillStyle = "#86e3ce";
+        ctx.fillRect(mmX + (p.x - MAP_LEFT) * sx - 1.5, mmY + (p.y - MAP_TOP) * sy - 1.5, 3, 3);
+
+        // Enemy dots
+        ctx.fillStyle = "#ff6f6f";
+        for (const e of state.enemies) {
+          ctx.fillRect(mmX + (e.x - MAP_LEFT) * sx - 1, mmY + (e.y - MAP_TOP) * sy - 1, 2, 2);
+        }
+
+        // Viewport rect
+        const halfW = WIDTH / 2;
+        const halfH = (HEIGHT - HUD_HEIGHT) / 2;
+        const vx = mmX + (state.camera.x - halfW - MAP_LEFT) * sx;
+        const vy = mmY + (state.camera.y - halfH - MAP_TOP) * sy;
+        const vw = WIDTH * sx;
+        const vh = (HEIGHT - HUD_HEIGHT) * sy;
+        ctx.strokeStyle = "rgba(255,255,255,0.5)";
+        ctx.strokeRect(vx, vy, vw, vh);
+      }
+
+      function drawBriefing() {
+        ctx.fillStyle = "rgba(14, 10, 20, 0.85)";
+        ctx.fillRect(0, 0, WIDTH, HEIGHT);
+
+        const level = state.currentLevel;
+        const mission = state.mission;
+        if (!level || !mission) return;
+
+        const cardW = WIDTH - 40;
+        const cardH = 280;
+        const cardX = 20;
+        const cardY = 60;
+
+        ctx.fillStyle = "#2a2434";
+        ctx.fillRect(cardX, cardY, cardW, cardH);
+        ctx.strokeStyle = "#f79f79";
+        ctx.lineWidth = 2;
+        ctx.strokeRect(cardX + 1, cardY + 1, cardW - 2, cardH - 2);
+
+        // Title
+        ctx.fillStyle = "#ffe8cf";
+        ctx.font = "bold 16px Trebuchet MS";
+        ctx.textAlign = "center";
+        ctx.fillText(`Mission ${level.id}: ${level.name}`, WIDTH / 2, cardY + 30);
+
+        // District
+        ctx.fillStyle = "#d7ccdf";
+        ctx.font = "12px Trebuchet MS";
+        ctx.fillText(`${level.district.toUpperCase()} DISTRICT`, WIDTH / 2, cardY + 52);
+
+        // Mission type icon
+        const iconY = cardY + 72;
+        const missionIcons = {
+          eliminate: { sprite: ASSETS.enemy[0], label: "ELIMINATE" },
+          uplink: { sprite: ASSETS.tiles.terminals ? ASSETS.tiles.terminals[0] : ASSETS.tiles.props[0], label: "UPLINK" },
+          demolition: { sprite: ASSETS.tiles.covers[0], label: "DEMOLITION" },
+          survive: { sprite: ASSETS.player[0], label: "SURVIVE" },
+          intel: { sprite: ASSETS.tiles.intel[0], label: "INTEL RECOVERY" }
+        };
+        const iconInfo = missionIcons[mission.type] || missionIcons.eliminate;
+        drawSprite(iconInfo.sprite, WIDTH / 2 - 16, iconY, 32, 32, 1);
+
+        ctx.fillStyle = "#f79f79";
+        ctx.font = "bold 13px Trebuchet MS";
+        ctx.fillText(iconInfo.label, WIDTH / 2, iconY + 48);
+
+        // Description
+        ctx.fillStyle = "#d7ccdf";
+        ctx.font = "12px Trebuchet MS";
+        ctx.textAlign = "center";
+        wrapText(mission.description, WIDTH / 2, iconY + 68, cardW - 40, 16);
+
+        // Objective info
+        ctx.fillStyle = "#ffe8cf";
+        ctx.font = "11px Trebuchet MS";
+        ctx.fillText(`Target: ${missionProgressText()}`, WIDTH / 2, iconY + 106);
+        ctx.fillText(`Time limit: ${Math.floor(level.timer)}s`, WIDTH / 2, iconY + 124);
+
+        // Weapon info
+        const weapon = WEAPONS[state.player.weaponIndex];
+        ctx.fillStyle = "#d7ccdf";
+        ctx.font = "11px Trebuchet MS";
+        ctx.fillText(`Equipped: ${weapon.name}`, WIDTH / 2, iconY + 150);
+        drawSprite(ASSETS.weapon[weapon.sprite], WIDTH / 2 - 10, iconY + 156, 20, 20, 1);
+
+        // Start button
+        const btnY = cardY + cardH + 20;
+        const btnW = 180;
+        const btnX = WIDTH / 2 - btnW / 2;
+        ctx.fillStyle = "#3a2f47";
+        ctx.fillRect(btnX, btnY, btnW, 44);
+        ctx.strokeStyle = "#86e3ce";
+        ctx.lineWidth = 2;
+        ctx.strokeRect(btnX + 1, btnY + 1, btnW - 2, 42);
+        ctx.fillStyle = "#ffe8cf";
+        ctx.font = "bold 16px Trebuchet MS";
+        ctx.fillText("BEGIN MISSION", WIDTH / 2, btnY + 28);
+
+        ctx.textAlign = "left";
+      }
+
+      function drawCharSelect() {
+        ctx.fillStyle = "#1a1520";
+        ctx.fillRect(0, 0, WIDTH, HEIGHT);
+
+        ctx.fillStyle = "#ffe8c9";
+        ctx.font = "bold 22px Trebuchet MS";
+        ctx.textAlign = "center";
+        ctx.fillText("SELECT CHARACTER", WIDTH / 2, 50);
+
+        const chars = ASSETS.player;
+        const cols = 2;
+        const size = 64;
+        const gap = 20;
+        const startX = WIDTH / 2 - (cols * (size + gap) - gap) / 2;
+        const startY = 80;
+
+        for (let i = 0; i < chars.length; i += 1) {
+          const col = i % cols;
+          const row = Math.floor(i / cols);
+          const cx = startX + col * (size + gap);
+          const cy = startY + row * (size + gap + 20);
+
+          const selected = state.selectedCharacter === i;
+          ctx.fillStyle = selected ? "#3a2f55" : "#2a2434";
+          ctx.fillRect(cx - 4, cy - 4, size + 8, size + 28);
+          ctx.strokeStyle = selected ? "#f79f79" : "rgba(255,255,255,0.2)";
+          ctx.lineWidth = selected ? 2 : 1;
+          ctx.strokeRect(cx - 4, cy - 4, size + 8, size + 28);
+
+          drawSprite(chars[i], cx + 8, cy + 4, size - 16, size - 16, 1);
+
+          // Show weapon
+          drawSprite(ASSETS.weapon[i % ASSETS.weapon.length], cx + size - 20, cy + size - 20, 18, 18, 0.85);
+
+          ctx.fillStyle = selected ? "#ffe8cf" : "#d7ccdf";
+          ctx.font = "10px Trebuchet MS";
+          ctx.fillText(`Agent ${i + 1}`, cx + size / 2, cy + size + 14);
+        }
+
+        // Confirm button
+        const btnY = startY + Math.ceil(chars.length / cols) * (size + gap + 20) + 20;
+        const btnW = 180;
+        const btnX = WIDTH / 2 - btnW / 2;
+        ctx.fillStyle = "#3a2f47";
+        ctx.fillRect(btnX, btnY, btnW, 44);
+        ctx.strokeStyle = "#86e3ce";
+        ctx.lineWidth = 2;
+        ctx.strokeRect(btnX + 1, btnY + 1, btnW - 2, 42);
+        ctx.fillStyle = "#ffe8cf";
+        ctx.font = "bold 16px Trebuchet MS";
+        ctx.fillText("CONFIRM", WIDTH / 2, btnY + 28);
+
+        // Coins display
+        ctx.fillStyle = "#f7d879";
+        ctx.font = "12px Trebuchet MS";
+        ctx.fillText(`Credits: ${state.coins}`, WIDTH / 2, HEIGHT - 30);
+
+        ctx.textAlign = "left";
+      }
+
+      function drawWeaponShop() {
+        ctx.fillStyle = "#1a1520";
+        ctx.fillRect(0, 0, WIDTH, HEIGHT);
+
+        ctx.fillStyle = "#ffe8c9";
+        ctx.font = "bold 20px Trebuchet MS";
+        ctx.textAlign = "center";
+        ctx.fillText("WEAPON SHOP", WIDTH / 2, 40);
+
+        ctx.fillStyle = "#f7d879";
+        ctx.font = "13px Trebuchet MS";
+        ctx.fillText(`Credits: ${state.coins}`, WIDTH / 2, 62);
+
+        const weapons = WEAPONS;
+        const cardW = WIDTH - 40;
+        const cardH = 58;
+        const startY = 82;
+
+        for (let i = 0; i < weapons.length; i += 1) {
+          const cy = startY + i * (cardH + 8);
+          const unlocked = i < state.build.maxUnlockedTier;
+          const equipped = i === state.build.weaponTier;
+
+          ctx.fillStyle = equipped ? "#3a2f55" : "#2a2434";
+          ctx.fillRect(20, cy, cardW, cardH);
+          ctx.strokeStyle = equipped ? "#f79f79" : unlocked ? "rgba(255,255,255,0.2)" : "rgba(255,255,255,0.08)";
+          ctx.lineWidth = equipped ? 2 : 1;
+          ctx.strokeRect(20, cy, cardW, cardH);
+
+          drawSprite(ASSETS.weapon[weapons[i].sprite], 30, cy + 10, 32, 32, unlocked ? 1 : 0.35);
+
+          ctx.fillStyle = unlocked ? "#ffe8cf" : "#777";
+          ctx.font = "bold 12px Trebuchet MS";
+          ctx.textAlign = "left";
+          ctx.fillText(weapons[i].name, 72, cy + 22);
+
+          ctx.fillStyle = unlocked ? "#d7ccdf" : "#555";
+          ctx.font = "10px Trebuchet MS";
+          ctx.fillText(`DMG: ${weapons[i].damage.toFixed(0)}  SPD: ${(1 / weapons[i].cooldown).toFixed(1)}/s`, 72, cy + 38);
+
+          if (unlocked && !equipped) {
+            ctx.fillStyle = "#86e3ce";
+            ctx.font = "bold 10px Trebuchet MS";
+            ctx.textAlign = "right";
+            ctx.fillText("EQUIP", 20 + cardW - 10, cy + 32);
+          } else if (!unlocked) {
+            const cost = 200 + i * 150;
+            ctx.fillStyle = state.coins >= cost ? "#f7d879" : "#666";
+            ctx.font = "bold 10px Trebuchet MS";
+            ctx.textAlign = "right";
+            ctx.fillText(`${cost} CR`, 20 + cardW - 10, cy + 32);
+          } else {
+            ctx.fillStyle = "#f79f79";
+            ctx.font = "bold 10px Trebuchet MS";
+            ctx.textAlign = "right";
+            ctx.fillText("EQUIPPED", 20 + cardW - 10, cy + 32);
+          }
+        }
+
+        // Continue button
+        const btnY = startY + weapons.length * (cardH + 8) + 16;
+        const btnW = 180;
+        const btnX = WIDTH / 2 - btnW / 2;
+        ctx.fillStyle = "#3a2f47";
+        ctx.fillRect(btnX, btnY, btnW, 40);
+        ctx.strokeStyle = "#f79f79";
+        ctx.lineWidth = 2;
+        ctx.strokeRect(btnX + 1, btnY + 1, btnW - 2, 38);
+        ctx.fillStyle = "#ffe8cf";
+        ctx.font = "bold 14px Trebuchet MS";
+        ctx.textAlign = "center";
+        ctx.fillText("CONTINUE", WIDTH / 2, btnY + 26);
+
+        ctx.textAlign = "left";
       }
 
       function drawMenu() {
@@ -3745,8 +4077,17 @@
       }
 
       function drawUpgrade() {
+        // Draw map with camera transform as background
+        const halfW = WIDTH / 2;
+        const halfH = (HEIGHT - HUD_HEIGHT) / 2;
+        ctx.save();
+        ctx.beginPath();
+        ctx.rect(0, HUD_HEIGHT, WIDTH, HEIGHT - HUD_HEIGHT);
+        ctx.clip();
+        ctx.translate(halfW - state.camera.x, HUD_HEIGHT + halfH - state.camera.y);
         drawMap();
         drawMissionObjects();
+        ctx.restore();
 
         ctx.fillStyle = "rgba(14, 10, 20, 0.8)";
         ctx.fillRect(0, 0, WIDTH, HEIGHT);
@@ -3776,7 +4117,18 @@
       }
 
       function drawEndScreen() {
-        drawMap();
+        // Draw map with camera transform as background
+        if (state.map) {
+          const halfW = WIDTH / 2;
+          const halfH = (HEIGHT - HUD_HEIGHT) / 2;
+          ctx.save();
+          ctx.beginPath();
+          ctx.rect(0, 0, WIDTH, HEIGHT);
+          ctx.clip();
+          ctx.translate(halfW - state.camera.x, HUD_HEIGHT + halfH - state.camera.y);
+          drawMap();
+          ctx.restore();
+        }
         ctx.fillStyle = "rgba(13, 9, 19, 0.78)";
         ctx.fillRect(0, 0, WIDTH, HEIGHT);
 
@@ -3826,6 +4178,15 @@
             break;
           case "menu":
             drawMenu();
+            break;
+          case "charSelect":
+            drawCharSelect();
+            break;
+          case "briefing":
+            drawBriefing();
+            break;
+          case "weaponShop":
+            drawWeaponShop();
             break;
           case "upgrade":
             drawUpgrade();
@@ -3920,7 +4281,87 @@
           if (point.y > 256 && point.y < 312 && point.x > WIDTH / 2 - 104 && point.x < WIDTH / 2 + 104) {
             playSfx("select", 0.35);
             triggerHaptic();
+            state.mode = "charSelect";
+          }
+          return;
+        }
+
+        if (state.mode === "charSelect") {
+          const chars = ASSETS.player;
+          const cols = 2;
+          const size = 64;
+          const gap = 20;
+          const startX = WIDTH / 2 - (cols * (size + gap) - gap) / 2;
+          const startY = 80;
+          for (let i = 0; i < chars.length; i += 1) {
+            const col = i % cols;
+            const row = Math.floor(i / cols);
+            const cx = startX + col * (size + gap);
+            const cy = startY + row * (size + gap + 20);
+            if (point.x >= cx - 4 && point.x <= cx + size + 4 && point.y >= cy - 4 && point.y <= cy + size + 24) {
+              state.selectedCharacter = i;
+              playSfx("select", 0.25);
+              return;
+            }
+          }
+          // Confirm button
+          const btnY = startY + Math.ceil(chars.length / cols) * (size + gap + 20) + 20;
+          if (point.y > btnY && point.y < btnY + 44 && point.x > WIDTH / 2 - 90 && point.x < WIDTH / 2 + 90) {
+            playSfx("select", 0.35);
+            triggerHaptic();
             startRun();
+          }
+          return;
+        }
+
+        if (state.mode === "briefing") {
+          const level = state.currentLevel;
+          if (!level) return;
+          // Start button hit area
+          const cardY = 60;
+          const cardH = 280;
+          const btnY = cardY + cardH + 20;
+          if (point.y > btnY && point.y < btnY + 44 && point.x > WIDTH / 2 - 90 && point.x < WIDTH / 2 + 90) {
+            playSfx("select", 0.35);
+            triggerHaptic();
+            state.mode = "playing";
+            state.camera.x = state.player.x;
+            state.camera.y = state.player.y;
+          }
+          return;
+        }
+
+        if (state.mode === "weaponShop") {
+          const weapons = WEAPONS;
+          const cardH = 58;
+          const startY = 82;
+          for (let i = 0; i < weapons.length; i += 1) {
+            const cy = startY + i * (cardH + 8);
+            if (point.y >= cy && point.y <= cy + cardH && point.x >= 20 && point.x <= WIDTH - 20) {
+              const unlocked = i < state.build.maxUnlockedTier;
+              if (unlocked) {
+                state.build.weaponTier = i;
+                state.player.weaponIndex = i;
+                playSfx("select", 0.25);
+              } else {
+                const cost = 200 + i * 150;
+                if (state.coins >= cost) {
+                  state.coins -= cost;
+                  state.build.maxUnlockedTier = Math.max(state.build.maxUnlockedTier, i);
+                  state.build.weaponTier = i;
+                  state.player.weaponIndex = i;
+                  playSfx("reward", 0.35);
+                  triggerHaptic();
+                }
+              }
+              return;
+            }
+          }
+          // Continue button
+          const btnY = startY + weapons.length * (cardH + 8) + 16;
+          if (point.y > btnY && point.y < btnY + 40 && point.x > WIDTH / 2 - 90 && point.x < WIDTH / 2 + 90) {
+            playSfx("select", 0.35);
+            startLevel(state.levelIndex + 1);
           }
           return;
         }
@@ -3930,10 +4371,11 @@
             if (choice.hitbox && hitRect(point, choice.hitbox)) {
               choice.apply();
               state.score += 140;
+              state.coins += 80 + state.levelIndex * 12;
               applyBuildToPlayer();
               playSfx("reward", 0.44);
               triggerHaptic();
-              startLevel(state.levelIndex + 1);
+              state.mode = "weaponShop";
               return;
             }
           }
@@ -3942,7 +4384,7 @@
 
         if (state.mode === "gameover" || state.mode === "victory") {
           resetGame();
-          startRun();
+          state.mode = "charSelect";
         }
       }
 
@@ -3966,12 +4408,29 @@
 
         if ((event.key === "Enter" || event.key === " ") && state.mode === "menu") {
           playSfx("select", 0.35);
+          state.mode = "charSelect";
+        }
+
+        if ((event.key === "Enter" || event.key === " ") && state.mode === "charSelect") {
+          playSfx("select", 0.35);
           startRun();
+        }
+
+        if ((event.key === "Enter" || event.key === " ") && state.mode === "briefing") {
+          playSfx("select", 0.35);
+          state.mode = "playing";
+          state.camera.x = state.player.x;
+          state.camera.y = state.player.y;
+        }
+
+        if ((event.key === "Enter" || event.key === " ") && state.mode === "weaponShop") {
+          playSfx("select", 0.35);
+          startLevel(state.levelIndex + 1);
         }
 
         if ((event.key === "Enter" || event.key === " ") && (state.mode === "gameover" || state.mode === "victory")) {
           resetGame();
-          startRun();
+          state.mode = "charSelect";
         }
 
         if ((event.key === "f" || event.key === "F") && !event.repeat) {
