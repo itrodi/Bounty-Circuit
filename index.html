@@ -291,7 +291,72 @@
             "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0185.png",
             "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0186.png",
             "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0187.png"
+          ],
+          vehicles: [
+            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0198.png"
+          ],
+          signs: [
+            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0208.png",
+            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0209.png",
+            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0216.png",
+            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0217.png"
+          ],
+          machines: [
+            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0200.png",
+            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0202.png",
+            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0203.png",
+            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0221.png",
+            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0222.png",
+            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0223.png",
+            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0224.png"
+          ],
+          archDoors: [
+            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0210.png",
+            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0213.png"
+          ],
+          bushes: [
+            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0083.png",
+            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0225.png",
+            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0226.png"
+          ],
+          groundDecor: [
+            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0175.png",
+            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0176.png",
+            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0172.png",
+            "kenney_desert-shooter-pack_1.0/PNG/Tiles/Tiles/tile_0173.png"
           ]
+        },
+        ui9: {
+          orangeTL: "kenney_desert-shooter-pack_1.0/PNG/Interface/Tiles/tile_0000.png",
+          orangeT:  "kenney_desert-shooter-pack_1.0/PNG/Interface/Tiles/tile_0001.png",
+          orangeTR: "kenney_desert-shooter-pack_1.0/PNG/Interface/Tiles/tile_0002.png",
+          orangeML: "kenney_desert-shooter-pack_1.0/PNG/Interface/Tiles/tile_0003.png",
+          orangeM:  "kenney_desert-shooter-pack_1.0/PNG/Interface/Tiles/tile_0004.png",
+          orangeMR: "kenney_desert-shooter-pack_1.0/PNG/Interface/Tiles/tile_0005.png",
+          orangeBL: "kenney_desert-shooter-pack_1.0/PNG/Interface/Tiles/tile_0006.png",
+          orangeB:  "kenney_desert-shooter-pack_1.0/PNG/Interface/Tiles/tile_0007.png",
+          orangeBR: "kenney_desert-shooter-pack_1.0/PNG/Interface/Tiles/tile_0008.png",
+          purpleTL: "kenney_desert-shooter-pack_1.0/PNG/Interface/Tiles/tile_0009.png",
+          purpleT:  "kenney_desert-shooter-pack_1.0/PNG/Interface/Tiles/tile_0010.png",
+          purpleTR: "kenney_desert-shooter-pack_1.0/PNG/Interface/Tiles/tile_0011.png",
+          purpleML: "kenney_desert-shooter-pack_1.0/PNG/Interface/Tiles/tile_0012.png",
+          purpleM:  "kenney_desert-shooter-pack_1.0/PNG/Interface/Tiles/tile_0013.png",
+          purpleMR: "kenney_desert-shooter-pack_1.0/PNG/Interface/Tiles/tile_0014.png",
+          purpleBL: "kenney_desert-shooter-pack_1.0/PNG/Interface/Tiles/tile_0015.png",
+          purpleB:  "kenney_desert-shooter-pack_1.0/PNG/Interface/Tiles/tile_0016.png",
+          purpleBR: "kenney_desert-shooter-pack_1.0/PNG/Interface/Tiles/tile_0017.png",
+          hpFull:   "kenney_desert-shooter-pack_1.0/PNG/Interface/Tiles/tile_0036.png",
+          hpHalf:   "kenney_desert-shooter-pack_1.0/PNG/Interface/Tiles/tile_0037.png",
+          hpEmpty:  "kenney_desert-shooter-pack_1.0/PNG/Interface/Tiles/tile_0038.png",
+          barOrangeL: "kenney_desert-shooter-pack_1.0/PNG/Interface/Tiles/tile_0039.png",
+          barOrangeM: "kenney_desert-shooter-pack_1.0/PNG/Interface/Tiles/tile_0040.png",
+          barOrangeR: "kenney_desert-shooter-pack_1.0/PNG/Interface/Tiles/tile_0041.png",
+          barBlueL:   "kenney_desert-shooter-pack_1.0/PNG/Interface/Tiles/tile_0042.png",
+          barBlueM:   "kenney_desert-shooter-pack_1.0/PNG/Interface/Tiles/tile_0043.png",
+          barBlueR:   "kenney_desert-shooter-pack_1.0/PNG/Interface/Tiles/tile_0044.png",
+          barDarkL:   "kenney_desert-shooter-pack_1.0/PNG/Interface/Tiles/tile_0045.png",
+          barDarkM:   "kenney_desert-shooter-pack_1.0/PNG/Interface/Tiles/tile_0046.png",
+          barDarkR:   "kenney_desert-shooter-pack_1.0/PNG/Interface/Tiles/tile_0047.png"
         },
         audio: {
           shoot: "kenney_desert-shooter-pack_1.0/Sounds/shoot-a.ogg",
@@ -474,6 +539,49 @@
 
       function drawSprite(path, x, y, w, h, alpha = 1) {
         return drawSpriteTo(ctx, path, x, y, w, h, alpha);
+      }
+
+      // Draw a 9-slice panel using interface tileset
+      function draw9Slice(targetCtx, style, x, y, w, h, tileSize = 16) {
+        const p = style === "orange" ? {
+          tl: ASSETS.ui9.orangeTL, t: ASSETS.ui9.orangeT, tr: ASSETS.ui9.orangeTR,
+          ml: ASSETS.ui9.orangeML, m: ASSETS.ui9.orangeM, mr: ASSETS.ui9.orangeMR,
+          bl: ASSETS.ui9.orangeBL, b: ASSETS.ui9.orangeB, br: ASSETS.ui9.orangeBR
+        } : {
+          tl: ASSETS.ui9.purpleTL, t: ASSETS.ui9.purpleT, tr: ASSETS.ui9.purpleTR,
+          ml: ASSETS.ui9.purpleML, m: ASSETS.ui9.purpleM, mr: ASSETS.ui9.purpleMR,
+          bl: ASSETS.ui9.purpleBL, b: ASSETS.ui9.purpleB, br: ASSETS.ui9.purpleBR
+        };
+        const ts = tileSize;
+        // Corners
+        drawSpriteTo(targetCtx, p.tl, x, y, ts, ts);
+        drawSpriteTo(targetCtx, p.tr, x + w - ts, y, ts, ts);
+        drawSpriteTo(targetCtx, p.bl, x, y + h - ts, ts, ts);
+        drawSpriteTo(targetCtx, p.br, x + w - ts, y + h - ts, ts, ts);
+        // Edges
+        for (let px = x + ts; px < x + w - ts; px += ts) {
+          const segW = Math.min(ts, x + w - ts - px);
+          drawSpriteTo(targetCtx, p.t, px, y, segW, ts);
+          drawSpriteTo(targetCtx, p.b, px, y + h - ts, segW, ts);
+        }
+        for (let py = y + ts; py < y + h - ts; py += ts) {
+          const segH = Math.min(ts, y + h - ts - py);
+          drawSpriteTo(targetCtx, p.ml, x, py, ts, segH);
+          drawSpriteTo(targetCtx, p.mr, x + w - ts, py, ts, segH);
+        }
+        // Fill center
+        for (let py = y + ts; py < y + h - ts; py += ts) {
+          for (let px = x + ts; px < x + w - ts; px += ts) {
+            const segW = Math.min(ts, x + w - ts - px);
+            const segH = Math.min(ts, y + h - ts - py);
+            drawSpriteTo(targetCtx, p.m, px, py, segW, segH);
+          }
+        }
+      }
+
+      // Draw a 9-slice panel on main canvas
+      function drawPanel(style, x, y, w, h, tileSize = 16) {
+        draw9Slice(ctx, style, x, y, w, h, tileSize);
       }
 
       function playSfx(key, volume = 0.4) {
@@ -2060,7 +2168,12 @@
 
           // --- Door with awning ---
           if (building.door) {
-            drawSpriteTo(sctx, building.door.tile, building.door.tx * TILE, building.door.ty * TILE, TILE, TILE, 1);
+            // Use arch door for larger buildings (tw >= 5 or th >= 5)
+            const useArchDoor = (building.tw >= 5 || building.th >= 5) && ASSETS.tiles.archDoors.length > 0;
+            const doorTile = useArchDoor
+              ? ASSETS.tiles.archDoors[(building.tx + building.ty) % ASSETS.tiles.archDoors.length]
+              : building.door.tile;
+            drawSpriteTo(sctx, doorTile, building.door.tx * TILE, building.door.ty * TILE, TILE, TILE, 1);
             // Add awning above door if there's space
             const awningY = building.door.ty - 1;
             if (awningY >= building.ty && awningY < building.ty + building.th) {
@@ -2068,14 +2181,130 @@
               drawSpriteTo(sctx, awningTile, building.door.tx * TILE, awningY * TILE, TILE, TILE, 0.85);
             }
           }
+
+          // --- Signs/posters on wall faces ---
+          if (building.tw >= 4 && southWallRows > 0 && ASSETS.tiles.signs.length > 0) {
+            const signHash = building.tx * 17 + building.ty * 31;
+            if (signHash % 3 === 0) {
+              const signX = building.tx + 1 + (signHash % Math.max(1, building.tw - 2));
+              const signY = building.ty + roofEndY;
+              const signTile = ASSETS.tiles.signs[signHash % ASSETS.tiles.signs.length];
+              if (!(building.door && building.door.tx === signX && building.door.ty === signY)) {
+                drawSpriteTo(sctx, signTile, signX * TILE, signY * TILE, TILE, TILE, 0.9);
+              }
+            }
+          }
+        }
+
+        // --- Fences between building clusters ---
+        const fenceH = ASSETS.tiles.fences[0];
+        const fenceV = ASSETS.tiles.fences.length > 1 ? ASSETS.tiles.fences[1] : ASSETS.tiles.fences[0];
+        if (map.buildings && map.buildings.length > 1) {
+          for (let i = 0; i < map.buildings.length; i += 1) {
+            const bA = map.buildings[i];
+            for (let j = i + 1; j < map.buildings.length; j += 1) {
+              const bB = map.buildings[j];
+              // Check if buildings are close enough and aligned to connect with fences
+              const gapX = Math.min(Math.abs((bA.tx + bA.tw) - bB.tx), Math.abs((bB.tx + bB.tw) - bA.tx));
+              const gapY = Math.min(Math.abs((bA.ty + bA.th) - bB.ty), Math.abs((bB.ty + bB.th) - bA.ty));
+              const overlapX = !(bA.tx + bA.tw <= bB.tx || bB.tx + bB.tw <= bA.tx);
+              const overlapY = !(bA.ty + bA.th <= bB.ty || bB.ty + bB.th <= bA.ty);
+
+              // Horizontal fence: buildings vertically adjacent, horizontally overlapping
+              if (overlapX && gapY >= 2 && gapY <= 4) {
+                const topB = bA.ty < bB.ty ? bA : bB;
+                const botB = bA.ty < bB.ty ? bB : bA;
+                const fenceY = topB.ty + topB.th;
+                const fStartX = Math.max(topB.tx, botB.tx);
+                const fEndX = Math.min(topB.tx + topB.tw, botB.tx + botB.tw);
+                for (let fx = fStartX; fx < fEndX; fx += 1) {
+                  if (map.roadMask[fenceY] && map.roadMask[fenceY][fx]) continue;
+                  drawSpriteTo(sctx, fenceH, fx * TILE, fenceY * TILE, TILE, TILE, 0.85);
+                }
+              }
+              // Vertical fence: buildings horizontally adjacent, vertically overlapping
+              if (overlapY && gapX >= 2 && gapX <= 4) {
+                const leftB = bA.tx < bB.tx ? bA : bB;
+                const rightB = bA.tx < bB.tx ? bB : bA;
+                const fenceX = leftB.tx + leftB.tw;
+                const fStartY = Math.max(leftB.ty, rightB.ty);
+                const fEndY = Math.min(leftB.ty + leftB.th, rightB.ty + rightB.th);
+                for (let fy = fStartY; fy < fEndY; fy += 1) {
+                  if (map.roadMask[fy] && map.roadMask[fy][fenceX]) continue;
+                  drawSpriteTo(sctx, fenceV, fenceX * TILE, fy * TILE, TILE, TILE, 0.85);
+                }
+              }
+            }
+          }
+        }
+
+        // --- Vehicles parked along roads ---
+        if (ASSETS.tiles.vehicles.length > 0) {
+          const vRng = makeRng(map.buildings.length * 47 + 991);
+          let vehicleCount = 0;
+          const vehicleGoal = 3 + Math.floor(map.buildings.length / 4);
+          for (let y = 3; y < MAP_ROWS - 3 && vehicleCount < vehicleGoal; y += 1) {
+            for (let x = 3; x < MAP_COLS - 3 && vehicleCount < vehicleGoal; x += 1) {
+              if (!map.roadMask[y][x]) continue;
+              // Only place on road edges next to non-road
+              const edgeR = !map.roadMask[y][x + 1];
+              const edgeB = !map.roadMask[y + 1] || !map.roadMask[y + 1][x];
+              if (!edgeR && !edgeB) continue;
+              if ((x * 31 + y * 17) % 19 !== 0) continue;
+              if (vRng() > 0.35) continue;
+              const vTile = ASSETS.tiles.vehicles[(x + y) % ASSETS.tiles.vehicles.length];
+              drawSpriteTo(sctx, vTile, x * TILE, y * TILE, TILE, TILE, 0.9);
+              vehicleCount += 1;
+            }
+          }
+        }
+
+        // --- Machines/terminals near building walls ---
+        if (ASSETS.tiles.machines.length > 0 && map.buildings) {
+          const mRng = makeRng(map.buildings.length * 23 + 557);
+          for (const building of map.buildings) {
+            if (mRng() > 0.4) continue;
+            // Place machine next to south wall
+            const mx = building.tx + 1 + Math.floor(mRng() * Math.max(1, building.tw - 2));
+            const my = building.ty + building.th;
+            if (!inBoundsTile(mx, my) || !map.roadMask[my] || !map.roadMask[my][mx]) continue;
+            if (building.door && building.door.tx === mx && building.door.ty === my) continue;
+            const machineTile = ASSETS.tiles.machines[Math.floor(mRng() * ASSETS.tiles.machines.length)];
+            drawSpriteTo(sctx, machineTile, mx * TILE, my * TILE, TILE, TILE, 0.92);
+          }
         }
 
         for (const landmark of map.landmarks || []) {
           drawSpriteTo(sctx, landmark.tile, landmark.tx * TILE, landmark.ty * TILE, TILE, TILE, landmark.alpha || 0.8);
         }
 
+        // --- Props (regular size) ---
         for (const prop of map.props) {
-          drawSpriteTo(sctx, prop.tile, prop.x - MAP_LEFT, prop.y - MAP_TOP, TILE, TILE, prop.alpha);
+          const isTree = ASSETS.tiles.trees.includes(prop.tile);
+          const isBush = ASSETS.tiles.bushes && ASSETS.tiles.bushes.includes(prop.tile);
+          if (isTree) {
+            // Draw trees at 2x size for visual impact like Sample A
+            drawSpriteTo(sctx, prop.tile, prop.x - MAP_LEFT - TILE / 2, prop.y - MAP_TOP - TILE, TILE * 2, TILE * 2, prop.alpha);
+          } else if (isBush) {
+            // Bushes at 1.5x
+            drawSpriteTo(sctx, prop.tile, prop.x - MAP_LEFT - 4, prop.y - MAP_TOP - 4, TILE + 8, TILE + 8, prop.alpha);
+          } else {
+            drawSpriteTo(sctx, prop.tile, prop.x - MAP_LEFT, prop.y - MAP_TOP, TILE, TILE, prop.alpha);
+          }
+        }
+
+        // --- Ground decoration (footprints, cracks) in open areas ---
+        if (ASSETS.tiles.groundDecor && ASSETS.tiles.groundDecor.length > 0) {
+          const gRng = makeRng(map.buildings.length * 13 + 331);
+          for (let y = 2; y < MAP_ROWS - 2; y += 1) {
+            for (let x = 2; x < MAP_COLS - 2; x += 1) {
+              if (map.roadMask[y][x]) continue;
+              if ((x * 23 + y * 37) % 31 !== 0) continue;
+              if (gRng() > 0.25) continue;
+              const decTile = ASSETS.tiles.groundDecor[Math.floor(gRng() * ASSETS.tiles.groundDecor.length)];
+              drawSpriteTo(sctx, decTile, x * TILE, y * TILE, TILE, TILE, 0.2 + gRng() * 0.15);
+            }
+          }
         }
 
         return surface;
