@@ -1850,6 +1850,28 @@
           if (addPropAt(tx, ty, treeTile)) treesPlaced += 1;
         }
 
+        // Place bushes near trees, along building edges, and in clusters
+        if (ASSETS.tiles.bushes && ASSETS.tiles.bushes.length > 0) {
+          const bushGoal = 6 + Math.floor(level.id / 2);
+          let bushesPlaced = 0;
+          attempts = 0;
+          while (bushesPlaced < bushGoal && attempts < 400) {
+            attempts += 1;
+            const tx = 1 + Math.floor(rng() * (MAP_COLS - 2));
+            const ty = 1 + Math.floor(rng() * (MAP_ROWS - 2));
+            if (roadMask[ty][tx] || occupiedMask[ty][tx]) continue;
+            if (propUsed.has(`${tx}:${ty}`)) continue;
+            // Bushes prefer to be near roads or buildings for visual context
+            const nearRoad = cellRoad(tx - 1, ty) || cellRoad(tx + 1, ty) || cellRoad(tx, ty - 1) || cellRoad(tx, ty + 1);
+            const nearBuild = (occupiedMask[ty - 1] && occupiedMask[ty - 1][tx]) ||
+              (occupiedMask[ty + 1] && occupiedMask[ty + 1][tx]) ||
+              occupiedMask[ty][tx - 1] || occupiedMask[ty][tx + 1];
+            if (!nearRoad && !nearBuild && rng() < 0.6) continue;
+            const bushTile = pickFrom(rng, ASSETS.tiles.bushes);
+            if (addPropAt(tx, ty, bushTile)) bushesPlaced += 1;
+          }
+        }
+
         // Place regular props (cacti, rocks, barrels)
         attempts = 0;
         const propGoal = (handcrafted ? 8 : 12) + Math.floor(level.id / 3);
@@ -2183,14 +2205,15 @@
           }
 
           // --- Signs/posters on wall faces ---
-          if (building.tw >= 4 && southWallRows > 0 && ASSETS.tiles.signs.length > 0) {
+          if (building.tw >= 3 && southWallRows > 0 && ASSETS.tiles.signs.length > 0) {
             const signHash = building.tx * 17 + building.ty * 31;
-            if (signHash % 3 === 0) {
+            // Place sign on most buildings with south walls
+            if (signHash % 2 === 0) {
               const signX = building.tx + 1 + (signHash % Math.max(1, building.tw - 2));
               const signY = building.ty + roofEndY;
               const signTile = ASSETS.tiles.signs[signHash % ASSETS.tiles.signs.length];
               if (!(building.door && building.door.tx === signX && building.door.ty === signY)) {
-                drawSpriteTo(sctx, signTile, signX * TILE, signY * TILE, TILE, TILE, 0.9);
+                drawSpriteTo(sctx, signTile, signX * TILE, signY * TILE, TILE, TILE, 1);
               }
             }
           }
@@ -2211,7 +2234,7 @@
               const overlapY = !(bA.ty + bA.th <= bB.ty || bB.ty + bB.th <= bA.ty);
 
               // Horizontal fence: buildings vertically adjacent, horizontally overlapping
-              if (overlapX && gapY >= 2 && gapY <= 4) {
+              if (overlapX && gapY >= 1 && gapY <= 6) {
                 const topB = bA.ty < bB.ty ? bA : bB;
                 const botB = bA.ty < bB.ty ? bB : bA;
                 const fenceY = topB.ty + topB.th;
@@ -2219,11 +2242,11 @@
                 const fEndX = Math.min(topB.tx + topB.tw, botB.tx + botB.tw);
                 for (let fx = fStartX; fx < fEndX; fx += 1) {
                   if (map.roadMask[fenceY] && map.roadMask[fenceY][fx]) continue;
-                  drawSpriteTo(sctx, fenceH, fx * TILE, fenceY * TILE, TILE, TILE, 0.85);
+                  drawSpriteTo(sctx, fenceH, fx * TILE, fenceY * TILE, TILE, TILE, 1);
                 }
               }
               // Vertical fence: buildings horizontally adjacent, vertically overlapping
-              if (overlapY && gapX >= 2 && gapX <= 4) {
+              if (overlapY && gapX >= 1 && gapX <= 6) {
                 const leftB = bA.tx < bB.tx ? bA : bB;
                 const rightB = bA.tx < bB.tx ? bB : bA;
                 const fenceX = leftB.tx + leftB.tw;
@@ -2231,7 +2254,7 @@
                 const fEndY = Math.min(leftB.ty + leftB.th, rightB.ty + rightB.th);
                 for (let fy = fStartY; fy < fEndY; fy += 1) {
                   if (map.roadMask[fy] && map.roadMask[fy][fenceX]) continue;
-                  drawSpriteTo(sctx, fenceV, fenceX * TILE, fy * TILE, TILE, TILE, 0.85);
+                  drawSpriteTo(sctx, fenceV, fenceX * TILE, fy * TILE, TILE, TILE, 1);
                 }
               }
             }
@@ -2242,18 +2265,19 @@
         if (ASSETS.tiles.vehicles.length > 0) {
           const vRng = makeRng(map.buildings.length * 47 + 991);
           let vehicleCount = 0;
-          const vehicleGoal = 3 + Math.floor(map.buildings.length / 4);
+          const vehicleGoal = 4 + Math.floor(map.buildings.length / 2);
           for (let y = 3; y < MAP_ROWS - 3 && vehicleCount < vehicleGoal; y += 1) {
             for (let x = 3; x < MAP_COLS - 3 && vehicleCount < vehicleGoal; x += 1) {
               if (!map.roadMask[y][x]) continue;
               // Only place on road edges next to non-road
-              const edgeR = !map.roadMask[y][x + 1];
-              const edgeB = !map.roadMask[y + 1] || !map.roadMask[y + 1][x];
+              const edgeR = x + 1 < MAP_COLS && !map.roadMask[y][x + 1];
+              const edgeB = y + 1 < MAP_ROWS && (!map.roadMask[y + 1] || !map.roadMask[y + 1][x]);
               if (!edgeR && !edgeB) continue;
-              if ((x * 31 + y * 17) % 19 !== 0) continue;
-              if (vRng() > 0.35) continue;
+              if ((x * 31 + y * 17) % 11 !== 0) continue;
+              if (vRng() > 0.55) continue;
               const vTile = ASSETS.tiles.vehicles[(x + y) % ASSETS.tiles.vehicles.length];
-              drawSpriteTo(sctx, vTile, x * TILE, y * TILE, TILE, TILE, 0.9);
+              // Draw vehicles at 2x size so they're clearly visible
+              drawSpriteTo(sctx, vTile, x * TILE - TILE / 2, y * TILE - TILE / 2, TILE * 2, TILE * 2, 0.95);
               vehicleCount += 1;
             }
           }
@@ -2263,14 +2287,16 @@
         if (ASSETS.tiles.machines.length > 0 && map.buildings) {
           const mRng = makeRng(map.buildings.length * 23 + 557);
           for (const building of map.buildings) {
-            if (mRng() > 0.4) continue;
+            if (mRng() > 0.65) continue;
             // Place machine next to south wall
             const mx = building.tx + 1 + Math.floor(mRng() * Math.max(1, building.tw - 2));
             const my = building.ty + building.th;
             if (!inBoundsTile(mx, my) || !map.roadMask[my] || !map.roadMask[my][mx]) continue;
             if (building.door && building.door.tx === mx && building.door.ty === my) continue;
             const machineTile = ASSETS.tiles.machines[Math.floor(mRng() * ASSETS.tiles.machines.length)];
-            drawSpriteTo(sctx, machineTile, mx * TILE, my * TILE, TILE, TILE, 0.92);
+            // Draw machines at 1.5x size for visibility
+            const mSize = Math.floor(TILE * 1.5);
+            drawSpriteTo(sctx, machineTile, mx * TILE - (mSize - TILE) / 2, my * TILE - (mSize - TILE), mSize, mSize, 1);
           }
         }
 
@@ -2299,10 +2325,10 @@
           for (let y = 2; y < MAP_ROWS - 2; y += 1) {
             for (let x = 2; x < MAP_COLS - 2; x += 1) {
               if (map.roadMask[y][x]) continue;
-              if ((x * 23 + y * 37) % 31 !== 0) continue;
-              if (gRng() > 0.25) continue;
+              if ((x * 23 + y * 37) % 17 !== 0) continue;
+              if (gRng() > 0.45) continue;
               const decTile = ASSETS.tiles.groundDecor[Math.floor(gRng() * ASSETS.tiles.groundDecor.length)];
-              drawSpriteTo(sctx, decTile, x * TILE, y * TILE, TILE, TILE, 0.2 + gRng() * 0.15);
+              drawSpriteTo(sctx, decTile, x * TILE, y * TILE, TILE, TILE, 0.5 + gRng() * 0.2);
             }
           }
         }
